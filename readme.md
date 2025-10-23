@@ -16,7 +16,7 @@ MINIMIZE 24 29 10 38;
 0 2 1 0 <= 12;
 2 1 -1 4 >= 10;
 ```
-\[
+$$
 \begin{aligned}
 \text{Minimize } & z = 24x_1 + 29x_2 + 10x_3 + 38x_4 \\
 \text{subject to } 
@@ -25,7 +25,6 @@ MINIMIZE 24 29 10 38;
 & 2x_1 + x_2 - x_3 + 4x_4 \ge 10 \\
 & x_1, x_2, x_3, x_4 \ge 0
 \end{aligned}
-\]
-
+$$
 
 
