@@ -43,12 +43,6 @@ int main(int argc, char *argv[]) {
   }
   printf("\n");
   
-  printf("Non basic variables:\n");
-  for (int i = 0;i < model->Non_basics_count ; i++) {
-    printf(" %i ", model->Non_basics[i]);
-
-  }
-
   printf("\n");
 
   RevisedSimplex(model); 
