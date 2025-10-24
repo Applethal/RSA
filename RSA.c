@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
 
   RevisedSimplex(model); 
   
+
   printf("Objective function: %f \n", model->objective_function);
 
 
