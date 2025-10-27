@@ -2,7 +2,7 @@
 #define RSA_H
 #include <string.h>
 #include <math.h>
-// #include <float.h> Do I need this to set the Big Ms? lol
+#include <float.h> // Do I need this to set the Big Ms? lol
 typedef struct {
   char objective[10];   // MINIMIZE or MAXIMIZE
   int num_constraints; // Number of constraints
@@ -39,8 +39,9 @@ double* Get_simplex_multiplier(Model* model, double **B_inv);
 
 double* Get_pivot_column(double** B_inv, Model* model, int best_cost_idx);
 
+void update_RHS(Model* model, double** B);
 
-
+void Get_Objective_Function(Model* model); 
 Model* read(FILE *textfile) {
   Model *model = (Model*)malloc(sizeof(Model));
 
@@ -267,6 +268,12 @@ Model* read(FILE *textfile) {
       model->coeffs[i] *= -1; 
     }
     strcpy(model->objective, "MAXIMIZE");
+  }else {
+    for (size_t i = 0; i < model->num_vars; i++) {
+      model->coeffs[i] *= -1; 
+    }
+    strcpy(model->objective, "MINIMIZE");
+
   }
 
   int artificial_start = model->num_vars + model->inequalities_count;
@@ -369,13 +376,15 @@ double** Get_Basics_Matrix(Model* model) {
 
 
 
-
+  // printf("Basics matrix:\n");
   for (size_t i = 0; i < model->num_constraints; i++) {
     Basics_matrix[i] = (double*)malloc(model->num_constraints * sizeof(double));
     for (size_t j = 0; j < model->num_constraints; j++) {
       int basics_index = model->Basics_vector[j];
       Basics_matrix[i][j] = model->columns[i][basics_index]; 
-    } 
+  //    printf(" %f ", Basics_matrix[i][j]);
+    }
+//    printf("\n");
   }
 
   return Basics_matrix;
@@ -397,10 +406,23 @@ void Print_Basics_matrix(double **B, int size) {
 void RevisedSimplex(Model* model){
   int termination = 0;
 
+  printf("\n");
+    printf("Non basics start:\n");
+    for (size_t i = 0; i < model->Non_basics_count; i++) {
+      printf(" %i ", model->Non_basics[i] + 1); 
+    }
+    printf("\n");
+    printf("Basics vector:\n");
 
+    for (size_t i = 0; i < model->num_constraints; i++) {
+      printf(" %i ", model->Basics_vector[i] + 1); 
+    }
+    printf("\n");
   while (termination != 1) {
+    int feasibility_check = 0;
     printf("Beginning solver iteration %i \n", model->solver_iterations);
     double **B = Get_Basics_Matrix(model);
+    double **B_copy = B;
     invert_matrix(B, model->num_constraints);
 
     double *Simplex_multiplier = Get_simplex_multiplier(model, B);
@@ -409,19 +431,20 @@ void RevisedSimplex(Model* model){
     int entering_var = 0;
 
     double best_reduced_cost;
-    if (strcmp(model->objective, "MAXIMIZE") == 0) {
-      best_reduced_cost = 9999.99;
-      printf("MAXIMIZATION problem detected, choosing the lowest reduced cost value\n");
+    if (strcmp(model->objective, "MINIMIZE") == 0) {
+      best_reduced_cost = DBL_MAX;
+      printf("MINIMIZATION problem detected, choosing the lowest reduced cost value\n");
     }
     else {
-      best_reduced_cost = -9999.99;
-      printf("MINIMIZATION problem detected, choosing the highest reduced cost value\n");
+      best_reduced_cost = -DBL_MAX;
+      printf("MAXIMIZATION problem detected, choosing the highest reduced cost value\n");
     }
+
 
 
     // Getting the entering variable
+        for (size_t i = 0; i < model->Non_basics_count; i++) {
 
-    for (size_t i = 0; i < model->Non_basics_count; i++) {
       int non_basic_idx = model->Non_basics[i]; 
 
 
@@ -429,33 +452,50 @@ void RevisedSimplex(Model* model){
 
       // printf("reduced cost of non basic variable %i is %f \n", non_basic_idx, reduced_cost);
 
-      if (strcmp(model->objective, "MINIMIZE") == 0) {
+      if (strcmp(model->objective, "MAXIMIZE") == 0) {
 
         if (reduced_cost > best_reduced_cost) {
           best_reduced_cost = reduced_cost;
           entering_var_idx = i;
           entering_var = non_basic_idx;
         }
-      } else if (strcmp(model->objective, "MAXIMIZE") == 0) {
+        if (reduced_cost <= 0) {
+          feasibility_check++;
+        }
+      } else if (strcmp(model->objective, "MINIMIZE") == 0) {
         if (reduced_cost < best_reduced_cost) {
           best_reduced_cost = reduced_cost;
           entering_var_idx = i;
           entering_var = non_basic_idx;
         }
+        if (reduced_cost >= 0) {
+          feasibility_check++;
+        }
+          
       }
 
     }
-    // printf("Best reduced cost is %f for the entering variable %i \n", best_reduced_cost, entering_var);
+    if (feasibility_check == model->Non_basics_count) {
+     printf("Optimal solution found, terminating!\n");
+     termination++;
+    Get_Objective_Function(model);
+      break;
+    }
+    printf("Best reduced cost is %f for the entering variable %i \n", best_reduced_cost, entering_var);
     double *Pivot = Get_pivot_column(B, model, entering_var);
+    update_RHS(model, B); 
     // Getting the exiting variable   
     int exiting_var_idx = 0;
     int exiting_var = 0;
-    double best_ratio = 9999.0;
+    double best_ratio = DBL_MAX;
     //
     for (size_t i = 0; i < model->num_constraints; i++) {
-
+      if (Pivot[i] == 0.0) {
+        continue;
+      }
       double ratio = model->RHS_vector[i] / Pivot[i];
-      if (ratio < best_ratio) {
+      printf("Ratio of variable %i is %f which has a pivot value of %f \n", model->Basics_vector[i], ratio, Pivot[i]);
+      if (ratio < best_ratio && ratio > 0) {
         best_ratio = ratio;
         exiting_var_idx = i;
         exiting_var = model->Basics_vector[i];
@@ -463,26 +503,30 @@ void RevisedSimplex(Model* model){
       }
 
     }
-    // printf("Best exiting variable is %i with ratio of %f \n", exiting_var, best_ratio );
-
-    model->Basics_vector[entering_var_idx] = entering_var_idx;
-    model->Non_basics[exiting_var_idx] = exiting_var;
-    //
-    printf("Entering variable:%i at position %i \n", entering_var, entering_var_idx);
-    printf("Exiting variable:%i at position: %i \n",exiting_var ,exiting_var_idx);
+    if (best_ratio < 0) {
+      printf("LP is unbounded! Terminating!\n");
+      exit(0); 
+    }
+    printf("Best exiting variable is %i with ratio of %f at position %i \n", exiting_var, best_ratio, exiting_var_idx );
+    model->Non_basics[entering_var_idx] = exiting_var;
+    model->Basics_vector[exiting_var_idx] = entering_var;
+    // model->Basics_vector[entering_var_idx] = entering_var;
+    // model->Non_basics[exiting_var_idx] = exiting_var;
+    // //
+    printf("Entering variable:%i at position %i \n", entering_var + 1, entering_var_idx);
+    printf("Exiting variable:%i at position: %i \n",exiting_var + 1,exiting_var_idx);
     printf("Non basics updated:\n");
     for (size_t i = 0; i < model->Non_basics_count; i++) {
-      printf(" %i ", model->Non_basics[i]); 
+      printf(" %i ", model->Non_basics[i] + 1); 
     }
-
+    printf("\n");
     printf("Basics vector:\n");
 
     for (size_t i = 0; i < model->num_constraints; i++) {
-      printf(" %i ", model->Basics_vector[i]); 
+      printf(" %i ", model->Basics_vector[i] + 1); 
     }
-    //   // TODO: FINISH TERMINATION REQUIREMENET
-    termination++;
-    //
+    printf("\n");
+    // termination++;
     model->solver_iterations++;
 
   } 
@@ -504,9 +548,9 @@ double Get_reduced_price(Model* model, double **B_inv, int var_col, double *mult
   }
   // printf(")\n");
   // printf("Dot product: %f \n", dot_product);
-  // printf("Objective coeff of variable %i is %f \n", var_col, model->coeffs[var_col]);
+  printf("Objective coeff of variable %i is %f \n", var_col, model->coeffs[var_col]);
   double reduced_cost = model->coeffs[var_col] - dot_product; 
-
+  printf("Reduced cost of variable %i is %f \n", var_col, reduced_cost);
   return reduced_cost;
 }
 double* Get_simplex_multiplier(Model* model, double **B_inv){
@@ -539,19 +583,51 @@ double* Get_simplex_multiplier(Model* model, double **B_inv){
 double* Get_pivot_column(double** B_inv, Model* model, int best_cost_idx) {
   int n = model->num_constraints;
   double* Pivot = (double*) malloc(sizeof(double) * n);
-
+ 
   for (int i = 0; i < n; i++) {
     double sum = 0.0;
     for (int j = 0; j < n; j++) {
       sum += B_inv[i][j] * model->columns[j][best_cost_idx];
     }
     Pivot[i] = sum;
-    // printf("Pivot[%d] = %f\n", i, Pivot[i]);
+   
   }
 
   return Pivot;
 }
 
+void update_RHS(Model* model, double** B) {
+    int n = model->num_constraints;
+    double* temp = (double*)malloc(n * sizeof(double));
+    
+    for (int i = 0; i < n; i++) {
+        temp[i] = 0.0;
+        for (int j = 0; j < n; j++) {
+            temp[i] += B[i][j] * model->RHS_vector[j];
+        }
+    }
+    
+    
+    for (int i = 0; i < n; i++) {
+        model->RHS_vector[i] = temp[i];
+    }
+    
+    free(temp);
+    
+    printf("Updated RHS vector:\n");
+    for (int i = 0; i < n; i++) {
+        printf("RHS[%d] = %f\n", i, model->RHS_vector[i]);
+    }
+}
+void Get_Objective_Function(Model* model) {
+    int n = model->num_constraints;
+    // TODO: FIX THE COMPUTATION, this can be obtained by multiplying the original RHS with X^b
+    for (int i = 0; i < n; i++) {
+    model->objective_function += model->RHS_vector[i];   
+    printf("Value of the variable x%i is %f \n", i, model->RHS_vector[i]);
+    }
+
+}
 void free_model(Model* model){
   for (int i = 0; i < model->num_constraints; i++) {
     free(model->columns[i]);

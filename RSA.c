@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   Print_columns(model);
 
   printf("Starting solving\n"); 
-
+  printf("Non basics count: %i, \n", model->Non_basics_count); 
 
   printf("\n");
 
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 
   RevisedSimplex(model); 
   
-
+  printf("\n");
   printf("Objective function: %f \n", model->objective_function);
 
 
