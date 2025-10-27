@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 
   printf("Objective coefficients:");
   for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
-    printf(" %.1f", model->coeffs[i]);  
+    printf(" %.1f", model->coeffs[i] *-1);  
   }
   printf("\n\n");
 
@@ -32,19 +32,10 @@ int main(int argc, char *argv[]) {
   Print_columns(model);
 
   printf("Starting solving\n"); 
-  printf("Non basics count: %i, \n", model->Non_basics_count); 
 
   printf("\n");
 
-  printf("Symbols:");
-
-  for (int i = 0;i < model->num_constraints;i++) {
-    printf(" %c ", model->constraints_symbols[i]);
-  }
-  printf("\n");
-  
-  printf("\n");
-
+ 
   RevisedSimplex(model); 
   
   printf("\n");

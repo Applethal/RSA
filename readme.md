@@ -1,5 +1,15 @@
 # Revised Simplex Algorithm in C
 STILL WORK IN PROGRESS!!!
+
+TODO: 
+1- Add error handling
+2- Add infeasibility check while solving
+3- Implement proper memory de-allocation
+
+# How to contribute 
+
+Test this with as many LP models please. So far I gave it nothing but LPs from linear algebra text books. Be sure to report any issues if necessary.
+
 In this code I attempted to write a mathematical solver that utilizes the Revised Simplex Algorithm by George B. Dantzig (1953). Model inputs should be written as such:
 
 ```
@@ -27,4 +37,5 @@ $$
 \end{aligned}
 $$
 
-
+# Update 27-10-2025
+As of today, the solver works but assumes that your text input follows the rules above. It utilizes' Gauss-Jordan elimination technique to invert the basics' matrix, if degeneracy is detected, the program terminates. So far it takes models that have proven optimality and has a check for unbounded LPs, though no infeasibility verification has been implemented as of yet.  
