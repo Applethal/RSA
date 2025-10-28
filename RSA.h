@@ -639,7 +639,7 @@ void Get_Objective_Function(Model* model, double *RHS_vector) {
   int n = model->num_constraints;
   for (int i = 0; i < n; i++) {
     int basic_idx = model->Basics_vector[i];
-    if (model->coeffs[basic_idx] == 0) {
+    if (model->coeffs[basic_idx] == 0 || RHS_vector[i] == 0  ) {
       continue;
 
     }
