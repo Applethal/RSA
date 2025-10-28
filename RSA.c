@@ -13,8 +13,9 @@ int main(int argc, char *argv[]) {
     printf("Cannot open file\n");
     exit(1);
   }
+  char  *objective= argv[2];
 
-  Model *model = read(file);
+  Model *model = read(file, objective);
 
   printf("Objective: %s\n", model->objective);
   printf("Number of variables: %d\n", model->num_vars);

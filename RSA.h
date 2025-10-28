@@ -4,7 +4,7 @@
 #include <math.h>
 #include <float.h> // Do I need this to set the Big Ms? lol
 typedef struct {
-  char objective[10];   // MINIMIZE or MAXIMIZE
+  char *objective;   // MINIMIZE or MAXIMIZE
   int num_constraints; // Number of constraints
   int num_vars;       // Number of variables
   double **columns;   // Constraints x variables coeffs matrix  
@@ -21,7 +21,7 @@ typedef struct {
   int Non_basics_count; // Counts the number of non-basic variables 
 } Model;
 
-Model* read(FILE *textfile);
+Model* read(FILE *textfile, char *objective);
 
 void free_model(Model *model);
 
@@ -39,15 +39,14 @@ double* Get_simplex_multiplier(Model* model, double **B_inv);
 
 double* Get_pivot_column(double** B_inv, Model* model, int best_cost_idx);
 
-void update_RHS(Model* model, double* RHS_vector, double** B);
+void update_RHS(Model* model, double* RHS_vector_copy, double** B);
 
 void Get_Objective_Function(Model* model, double *RHS_vector); 
 
-Model* read(FILE *textfile) {
+Model* read(FILE *textfile, char *objective) {
   Model *model = (Model*)malloc(sizeof(Model));
 
-  fscanf(textfile, "%s", model->objective);
-
+  model->objective = objective;
   // Count the number of coefficients on the MINIMIZE line
   long pos = ftell(textfile);
   model->num_vars = 0;
@@ -306,64 +305,74 @@ void Print_columns(Model* model){
 
 
 void invert_matrix(double **matrix, int n) {
-  // Check if matrix is square (you'll need to pass n as parameter)
-  // Create augmented matrix [A|I]
-  double **augmented = (double**)malloc(n * sizeof(double*));
-  for (int i = 0; i < n; i++) {
-    augmented[i] = (double*)malloc(2 * n * sizeof(double));
-    // Copy original matrix
-    for (int j = 0; j < n; j++) {
-      augmented[i][j] = matrix[i][j];
-    }
-    // Add identity matrix
-    for (int j = n; j < 2 * n; j++) {
-      augmented[i][j] = (j - n == i) ? 1.0 : 0.0;
-    }
-  }
-
-  // Gauss-Jordan elimination
-  for (int i = 0; i < n; i++) {
-    // Find pivot
-    double pivot = augmented[i][i];
-
-    if (fabs(pivot) < 1e-10) {
-      printf("WARNING: Degenerate matrix!\n");
-      // Free memory
-      for (int k = 0; k < n; k++) {
-        free(augmented[k]);
-      }
-      free(augmented);
-      exit(1);
-    }
-
-    // Scale pivot row
-    for (int j = 0; j < 2 * n; j++) {
-      augmented[i][j] /= pivot;
-    }
-
-    // Eliminate column
-    for (int k = 0; k < n; k++) {
-      if (k != i) {
-        double factor = augmented[k][i];
-        for (int j = 0; j < 2 * n; j++) {
-          augmented[k][j] -= factor * augmented[i][j];
+    double **augmented = (double**)malloc(n * sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        augmented[i] = (double*)malloc(2 * n * sizeof(double));
+        for (int j = 0; j < n; j++) {
+            augmented[i][j] = matrix[i][j];
         }
-      }
+        for (int j = n; j < 2 * n; j++) {
+            augmented[i][j] = (j - n == i) ? 1.0 : 0.0;
+        }
     }
-  }
-
-  // Copy inverse back to original matrix
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < n; j++) {
-      matrix[i][j] = augmented[i][n + j];
+    
+    // Gauss-Jordan with partial pivoting
+    for (int i = 0; i < n; i++) {
+        // Find row with largest absolute value in column i
+        int max_row = i;
+        double max_val = fabs(augmented[i][i]);
+        for (int k = i + 1; k < n; k++) {
+            if (fabs(augmented[k][i]) > max_val) {
+                max_val = fabs(augmented[k][i]);
+                max_row = k;
+            }
+        }
+        
+        // Swap rows if needed
+        if (max_row != i) {
+            double *temp = augmented[i];
+            augmented[i] = augmented[max_row];
+            augmented[max_row] = temp;
+        }
+        
+        double pivot = augmented[i][i];
+        if (fabs(pivot) < 1e-10) {
+            printf("ERROR: Singular matrix - basis is not invertible!\n");
+            printf("Check your basis selection at iteration %d\n", i);
+            for (int k = 0; k < n; k++) {
+                free(augmented[k]);
+            }
+            free(augmented);
+            exit(1);
+        }
+        
+        // Scale pivot row
+        for (int j = 0; j < 2 * n; j++) {
+            augmented[i][j] /= pivot;
+        }
+        
+        // Eliminate column
+        for (int k = 0; k < n; k++) {
+            if (k != i) {
+                double factor = augmented[k][i];
+                for (int j = 0; j < 2 * n; j++) {
+                    augmented[k][j] -= factor * augmented[i][j];
+                }
+            }
+        }
     }
-  }
-
-  // Free augmented matrix
-  for (int i = 0; i < n; i++) {
-    free(augmented[i]);
-  }
-  free(augmented);
+    
+    // Copy inverse back
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            matrix[i][j] = augmented[i][n + j];
+        }
+    }
+    
+    for (int i = 0; i < n; i++) {
+        free(augmented[i]);
+    }
+    free(augmented);
 }
 
 double** Get_Basics_Matrix(Model* model) {
@@ -476,6 +485,7 @@ void RevisedSimplex(Model* model){
       }
 
     }
+    // If all the reduced costs are positive in a minimization problem / negative in a maximization problem => optimal solution found
     if (feasibility_check == model->Non_basics_count) {
       printf("Optimal solution found, terminating!\n");
       termination++;
@@ -595,27 +605,27 @@ double* Get_pivot_column(double** B_inv, Model* model, int best_cost_idx) {
     for (int j = 0; j < n; j++) {
       sum += B_inv[i][j] * model->columns[j][best_cost_idx];
     }
-    Pivot[i] = sum;
+       Pivot[i] = sum;
 
   }
-
-  return Pivot;
+    return Pivot;
 }
 
-void update_RHS(Model* model, double *RHS_vector, double** B) {
+void update_RHS(Model* model, double *RHS_vector_copy, double** B) {
   int n = model->num_constraints;
   double* temp = (double*)malloc(n * sizeof(double));
 
   for (int i = 0; i < n; i++) {
     temp[i] = 0.0;
     for (int j = 0; j < n; j++) {
-      temp[i] += B[i][j] * RHS_vector[j];
+      temp[i] += B[i][j] * RHS_vector_copy[j];
+    
     }
   }
 
 
   for (int i = 0; i < n; i++) {
-    RHS_vector[i] = temp[i];
+    RHS_vector_copy[i] = temp[i];
   }
 
   free(temp);
