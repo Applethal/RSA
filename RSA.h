@@ -1,5 +1,7 @@
 #ifndef RSA_H
 #define RSA_H
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <float.h> // Do I need this to set the Big Ms? lol
@@ -21,7 +23,7 @@ typedef struct {
   int Non_basics_count; // Counts the number of non-basic variables 
 } Model;
 
-Model* read(FILE *textfile, char *objective);
+Model* read_csv(FILE *textfile);
 
 void free_model(Model *model);
 
@@ -43,73 +45,70 @@ void update_RHS(Model* model, double* RHS_vector_copy, double** B);
 
 void Get_Objective_Function(Model* model, double *RHS_vector); 
 
-Model* read(FILE *textfile, char *objective) {
+Model* read_csv(FILE *csvfile) {
   Model *model = (Model*)malloc(sizeof(Model));
-
-  model->objective = objective;
-  // Count the number of coefficients on the MINIMIZE line
-  long pos = ftell(textfile);
-  model->num_vars = 0;
-  char ch;
-  while ((ch = fgetc(textfile)) != ';' && ch != '\n' && ch != EOF) {
-    if (ch == ' ' || ch == '\t') {
-      continue;
-    } else {
-      ungetc(ch, textfile);
-      double temp;
-      if (fscanf(textfile, "%lf", &temp) == 1) {
-        model->num_vars++;
-      }
-    }
+  char line[1024];
+  
+  // Line 1: Read objective type (MINIMIZE or MAXIMIZE)
+  if (!fgets(line, sizeof(line), csvfile)) {
+    fprintf(stderr, "Error: Could not read objective type\n");
+    free(model);
+    return NULL;
   }
-
-  // Go back and read the coefficients
-  fseek(textfile, pos, SEEK_SET);
+  
+  // Remove newline
+  line[strcspn(line, "\r\n")] = 0;
+  
+  model->objective = (char*)malloc(strlen(line) + 1);
+  strcpy(model->objective, line);
+  
+  // Line 2: Read objective coefficients and count variables
+  if (!fgets(line, sizeof(line), csvfile)) {
+    fprintf(stderr, "Error: Could not read objective coefficients\n");
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+  
+  // Count variables by counting commas + 1
+  model->num_vars = 1;
+  for (char *p = line; *p; p++) {
+    if (*p == ',') model->num_vars++;
+  }
+  
+  // Parse objective coefficients
   double *objective_coeffs = (double*)malloc(model->num_vars * sizeof(double));
-
-  for (int i = 0; i < model->num_vars; i++) {
-
-    fscanf(textfile, "%lf", &objective_coeffs[i]);
+  char *token = strtok(line, ",");
+  int idx = 0;
+  while (token != NULL && idx < model->num_vars) {
+    objective_coeffs[idx++] = atof(token);
+    token = strtok(NULL, ",");
   }
-
-  // Skip the rest of the first line (semicolon and newline)
-  char buffer[256];
-  fgets(buffer, sizeof(buffer), textfile);
-
-  pos = ftell(textfile);
+  
+  // First pass: count constraints and their types
+  long constraint_start = ftell(csvfile);
   model->num_constraints = 0;
-  int num_le = 0;  // <=
-  int num_ge = 0;  // >=
-  int num_eq = 0;  // =
-
-  char line[256];
-  while (fgets(line, sizeof(line), textfile)) {
-    if (strchr(line, '<')) {
-      num_le++;
-      model->num_constraints++;
-    } else if (strchr(line, '>')) {
-      num_ge++;
-      model->num_constraints++;
-    } else if (strchr(line, '=')) {
-      // Check if it's just = and not <= or >=
-      if (!strchr(line, '<') && !strchr(line, '>')) {
-        num_eq++;
-        model->num_constraints++;
-      }
-    }
+  int num_le = 0, num_ge = 0, num_eq = 0;
+  
+  while (fgets(line, sizeof(line), csvfile)) {
+    if (strstr(line, "<=")) num_le++;
+    else if (strstr(line, ">=")) num_ge++;
+    else if (strstr(line, "=")) num_eq++;
+    model->num_constraints++;
   }
-
-  int num_slack_surplus = num_le + num_ge;  
-  int num_artificial = num_eq + num_ge;      
+  
+  int num_slack_surplus = num_le + num_ge;
+  int num_artificial = num_eq + num_ge;
   int total_cols = model->num_vars + num_slack_surplus + num_artificial;
-
-  printf("Original variables: %d\n", model->num_vars);
-  printf("<= constraints: %d (need %d slack vars)\n", num_le, num_le);
-  printf(">= constraints: %d (need %d surplus + %d artificial)\n", num_ge, num_ge, num_ge);
-  printf("=  constraints: %d (need %d artificial)\n", num_eq, num_eq);
-  printf("Total matrix columns: %d\n", total_cols);
-  printf("========================\n\n");
-
+  
+  // printf("Original variables: %d\n", model->num_vars);
+  // printf("<= constraints: %d (need %d slack vars)\n", num_le, num_le);
+  // printf(">= constraints: %d (need %d surplus + %d artificial)\n", num_ge, num_ge, num_ge);
+  // printf("=  constraints: %d (need %d artificial)\n", num_eq, num_eq);
+  // printf("Total matrix columns: %d\n", total_cols);
+  // printf("========================\n\n");
+  //
+  // Allocate model arrays
   model->columns = (double**)malloc(model->num_constraints * sizeof(double*));
   for (int i = 0; i < model->num_constraints; i++) {
     model->columns[i] = (double*)malloc(total_cols * sizeof(double));
@@ -117,133 +116,118 @@ Model* read(FILE *textfile, char *objective) {
       model->columns[i][j] = 0.0;
     }
   }
-
+  
   model->RHS_vector = (double*)malloc(model->num_constraints * sizeof(double));
   model->constraints_symbols = (char*)malloc(model->num_constraints * sizeof(char));
-
-  // Allocate tracking vectors
   model->equalities_vector = (int*)malloc(num_artificial * sizeof(int));
   model->Basics_vector = (int*)malloc(model->num_constraints * sizeof(int));
-
+  model->coeffs = (double*)malloc(total_cols * sizeof(double));
+  
   model->inequalities_count = num_slack_surplus;
   model->equalities_count = num_artificial;
-
-  fseek(textfile, pos, SEEK_SET);
-
-  // Temporary storage for constraint data
-  typedef struct {
-    double coeffs[256];
-    double rhs;
-    char type;  // 'L', 'G', 'E'
-  } TempConstraint;
-
-  TempConstraint *temp_constraints = (TempConstraint*)malloc(model->num_constraints * sizeof(TempConstraint));
-
-  int constraint_idx = 0;
-  while (fgets(line, sizeof(line), textfile) && constraint_idx < model->num_constraints) {
-    char *token = strtok(line, " \t\n");
-    int col_idx = 0;
-    char inequality[3] = "";
-
-    while (token != NULL) {
-      if (strcmp(token, "<=") == 0 || strcmp(token, ">=") == 0 || strcmp(token, "=") == 0) {
-        strcpy(inequality, token);
-        token = strtok(NULL, " \t\n");
-        break;
-      }
-      temp_constraints[constraint_idx].coeffs[col_idx++] = atof(token);
-      token = strtok(NULL, " \t\n");
-    }
-
-    if (strcmp(inequality, "<=") == 0) {
-      temp_constraints[constraint_idx].type = 'L';
-    } else if (strcmp(inequality, "=") == 0) {
-      temp_constraints[constraint_idx].type = 'E';
-    } else if (strcmp(inequality, ">=") == 0) {
-      temp_constraints[constraint_idx].type = 'G';
-    }
-
-    if (token != NULL) {
-      temp_constraints[constraint_idx].rhs = atof(token);
-    }
-
-    constraint_idx++;
-  }
-
-
-  model->coeffs = (double*)malloc(sizeof(double) * (model->num_vars + model->equalities_count + model->inequalities_count));
-
+  
+  // Second pass: read constraints
+  fseek(csvfile, constraint_start, SEEK_SET);
+  
   int slack_col = model->num_vars;
   int artificial_col = model->num_vars + num_slack_surplus;
-
   int slack_idx = 0;
   int artificial_idx = 0;
-
+  
   for (int i = 0; i < model->num_constraints; i++) {
-    // Copy original variable coefficients
-    for (int j = 0; j < model->num_vars; j++) {
-      model->columns[i][j] = temp_constraints[i].coeffs[j];
+    if (!fgets(line, sizeof(line), csvfile)) {
+      fprintf(stderr, "Error: Unexpected end of file at constraint %d\n", i);
+      // TODO: Cleanup and return NULL
+      break;
     }
-
-    model->RHS_vector[i] = temp_constraints[i].rhs;
-    model->constraints_symbols[i] = temp_constraints[i].type;
-
-    if (temp_constraints[i].type == 'L') {
-      // <= constraint: slack is basic
+    
+    // Parse constraint coefficients
+    token = strtok(line, ",");
+    int col_idx = 0;
+    
+    // Read variable coefficients
+    while (token != NULL && col_idx < model->num_vars) {
+      model->columns[i][col_idx] = atof(token);
+      col_idx++;
+      token = strtok(NULL, ",");
+    }
+    
+    // Read operator (<=, >=, =)
+    if (token == NULL) {
+      fprintf(stderr, "Error: Missing operator in constraint %d\n", i);
+      continue;
+    }
+    
+    // Remove spaces from operator token
+    char op[4] = "";
+    int op_idx = 0;
+    for (char *p = token; *p && op_idx < 3; p++) {
+      if (*p != ' ' && *p != '\t') {
+        op[op_idx++] = *p;
+      }
+    }
+    op[op_idx] = '\0';
+    
+    // Read RHS
+    token = strtok(NULL, ",");
+    if (token == NULL) {
+      fprintf(stderr, "Error: Missing RHS in constraint %d\n", i);
+      continue;
+    }
+    model->RHS_vector[i] = atof(token);
+    
+    // Process constraint type
+    if (strcmp(op, "<=") == 0) {
+      model->constraints_symbols[i] = 'L';
       int col = slack_col + slack_idx;
       model->columns[i][col] = 1.0;
-      model->Basics_vector[i] = col; 
+      model->Basics_vector[i] = col;
       model->coeffs[col] = 0.0;
       slack_idx++;
-
-    } else if (temp_constraints[i].type == 'G') {
-      // >= constraint: artificial is basic (not surplus!)
+      
+    } else if (strcmp(op, ">=") == 0) {
+      model->constraints_symbols[i] = 'G';
       int surplus_col = slack_col + slack_idx;
       int artif_col = artificial_col + artificial_idx;
-
+      
       model->columns[i][surplus_col] = -1.0;
       model->columns[i][artif_col] = 1.0;
-
       model->equalities_vector[artificial_idx] = artif_col;
-      model->Basics_vector[i] = artif_col;  
-
-      model->coeffs[artif_col] = 9999.00; 
+      model->Basics_vector[i] = artif_col;
+      model->coeffs[artif_col] = 9999.00;
       slack_idx++;
       artificial_idx++;
-
-    } else if (temp_constraints[i].type == 'E') {
-      // = constraint: artificial is basic
+      
+    } else if (strcmp(op, "=") == 0) {
+      model->constraints_symbols[i] = 'E';
       int artif_col = artificial_col + artificial_idx;
       model->columns[i][artif_col] = 1.0;
       model->equalities_vector[artificial_idx] = artif_col;
-      model->Basics_vector[i] = artif_col;  
+      model->Basics_vector[i] = artif_col;
       model->coeffs[artif_col] = 9999.00;
       artificial_idx++;
+      
+    } else {
+      fprintf(stderr, "Error: Invalid operator '%s' in constraint %d\n", op, i);
     }
   }
-
-  free(temp_constraints);
-
-  printf("Number of slack/surplus variables: %d\n", model->inequalities_count);
-  printf("Number of artificial variables: %d\n", model->equalities_count);
-
+  
+  // printf("Number of slack/surplus variables: %d\n", model->inequalities_count);
+  // printf("Number of artificial variables: %d\n", model->equalities_count);
+  
   if (model->num_constraints > model->num_vars) {
-
     printf("Warning: More constraints than variables! The Revised Simplex Algorithm works best when the number of variables exceeds the number of constraints\n");
-
   }
-
-
+  
   model->solver_iterations = 1;
-
-  for (size_t i = 0; i < model->num_vars; i++) {
-
+  
+  // Set objective coefficients
+  for (int i = 0; i < model->num_vars; i++) {
     model->coeffs[i] = objective_coeffs[i];
-
   }
-
-  model->Non_basics = (int*)malloc(sizeof(int) * total_cols);
-
+  
+  // Build non-basics list
+  model->Non_basics = (int*)malloc(total_cols * sizeof(int));
   int non_basic_idx = 0;
   for (int col = 0; col < total_cols; col++) {
     int is_basic = 0;
@@ -257,47 +241,56 @@ Model* read(FILE *textfile, char *objective) {
       model->Non_basics[non_basic_idx++] = col;
     }
   }
-
   model->Non_basics_count = non_basic_idx;
-
+  
   model->objective_function = 0.0;
-  // Convert the problem to a maximization problem if it's a MIN problem, if it's a MIN problem then we convert to MAX
+  printf("Objective function mode: %s\n", model->objective);
+  printf("Number of variables: %d\n", model->num_vars);
+  printf("Number of constraints: %d\n", model->num_constraints);
+  printf("Objective coefficients (Slack and Artificial coeffs included):");
+  for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
+    printf(" %.1f", model->coeffs[i]);  
+  }
+  printf("\n\n");
 
+
+
+  // Converting the problem to its opposite objective direction
   if (strcmp(model->objective, "MINIMIZE") == 0) {
-    for (size_t i = 0; i < model->num_vars; i++) {
-      model->coeffs[i] *= -1; 
+    for (int i = 0; i < model->num_vars; i++) {
+      model->coeffs[i] *= -1;
     }
     strcpy(model->objective, "MAXIMIZE");
-  }else {
-    for (size_t i = 0; i < model->num_vars; i++) {
-      model->coeffs[i] *= -1; 
+  } else {
+    for (int i = 0; i < model->num_vars; i++) {
+      model->coeffs[i] *= -1;
     }
     strcpy(model->objective, "MINIMIZE");
-
   }
-
+  
+  // Apply Big M to artificial variables
   int artificial_start = model->num_vars + model->inequalities_count;
   double BIG_M = 9999.0;
-  for (size_t i = 0; i < model->equalities_count; i++) {
-    model->coeffs[artificial_start + i] = -BIG_M; 
+  for (int i = 0; i < model->equalities_count; i++) {
+    model->coeffs[artificial_start + i] = -BIG_M;
   }
-
-
+  
+  free(objective_coeffs);
   return model;
 }
-
 
 void Print_columns(Model* model){
   int total_cols = model->num_vars + model->inequalities_count + model->equalities_count;
 
-  printf("Constraint matrix:\n");
+  printf("Constraints in canonical form:\n");
   for (int i = 0; i < model->num_constraints; i++) {
     printf("Constraint %d: ", i + 1);
     for (int j = 0; j < total_cols; j++) {
       printf("%5.1f ", model->columns[i][j]);  
     }
     printf("| RHS: %5.1f", model->RHS_vector[i]);
-    printf(" | Basic var: col %d\n", model->Basics_vector[i]);
+    printf("\n");
+    // printf(" | Basic var: col %d\n", model->Basics_vector[i]);
   }
   printf("\n");
 
