@@ -20,7 +20,7 @@ TODO:
 Test this with as many LP models please. So far I gave it nothing but LPs from linear algebra/Operation research text books. Be sure to report any issues if necessary.
 
 # About
-In this code I attempted to write a mathematical solver that utilizes the Revised Simplex Algorithm by George B. Dantzig (1953). Model inputs should be written (In general form) as such:
+In this code I attempted to write a mathematical solver that utilizes the Revised Simplex Algorithm by George B. Dantzig (1953) using the Big-M method. The model input should be written (In general form) as such:
 
 ```
 OBJECTIVE
