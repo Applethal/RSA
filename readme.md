@@ -6,13 +6,13 @@ TODO:
 1- Add error handling.
 
 
-2- Add infeasibility check while solving.
+2- <del>Add infeasibility check while solving.</del>
 
 3- <del>Implement proper memory de-allocation.</del>
 
 4- <del>Might as well substitute .txt data input with .csv data instead. Maybe even work on better data parsing since it does more computational effort, in my opinion. </del>
 
-5- Add debug mode.
+5- <del> Add debug mode </del>.
 
 
 # How to contribute 
@@ -51,9 +51,8 @@ $$
 
 Implicitly, all variables are non-negative (of course) you won't need to consider this. To run this program, simply pass the text file and objective arguments:
 
-```./RSA "filepath" ```
+```./RSA "filepath" "-Debug"```
 
-The program will convert the problem to its canonical form then iterative lye execute the algorithm until it terminates. 
 
-# Update 27-10-2025
-As of today, the solver works but assumes that your text input follows the rules above. It utilizes' Gauss-Jordan elimination technique to invert the basics' matrix, if degeneracy is detected, the program terminates. So far it takes models that have proven optimality and has a check for unbounded LPs, though no infeasibility verification has been implemented as of yet.  
+Where `filepath`is the `.csv` file path, `-Debug` is an optional flag that can be added as an argument, allowing you to see the solver operations step by step, the displayed indices are 0 indexed. The program will convert the problem to its canonical form then iteratively execute the algorithm until it terminates. 
+
