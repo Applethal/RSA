@@ -837,6 +837,7 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
   int n = model->num_constraints;
   for (int i = 0; i < n; i++) {
     int basic_idx = model->basics_vector[i];
+    // If there is a basic artificial value with a positive RHS value -> Infeasibility!
     if (model->coeffs[basic_idx] > 9000.0 && rhs_vector[i] > 0) {
       printf("Model Infeasible. Terminating!\n");
       exit(0);
@@ -852,10 +853,6 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
     double value = (model->coeffs[basic_idx] * rhs_vector[i]) * -1;
     model->objective_function += value;
 
-    if (model->objective_function > 9000 * 0.5) {
-      printf("Model Infeasible. Artificial variable x%i has a positive RHS value Terminating!\n", basic_idx);
-      exit(0);
-    }
     if ( rhs_vector[i] == 0 ) {
       continue;
     }
