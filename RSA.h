@@ -103,13 +103,6 @@ Model* ReadCsv(FILE *csvfile) {
   int num_artificial = num_eq + num_ge;
   int total_cols = model->num_vars + num_slack_surplus + num_artificial;
 
-  // printf("Original variables: %d\n", model->num_vars);
-  // printf("<= constraints: %d (need %d slack vars)\n", num_le, num_le);
-  // printf(">= constraints: %d (need %d surplus + %d artificial)\n", num_ge, num_ge, num_ge);
-  // printf("=  constraints: %d (need %d artificial)\n", num_eq, num_eq);
-  // printf("Total matrix columns: %d\n", total_cols);
-  // printf("========================\n\n");
-  //
   // Allocate model arrays
   model->columns = (double**)malloc(model->num_constraints * sizeof(double*));
   for (int i = 0; i < model->num_constraints; i++) {
@@ -405,6 +398,8 @@ void RevisedSimplex_Debug(Model* model){
   int termination = 0;
   int n = model->num_constraints;
   printf("\n");
+  printf("===================================================================\n");
+
   printf("Initial Non basic variable indices:\n");
   for (size_t i = 0; i < model->non_basics_count; i++) {
     printf(" %i ", model->non_basics[i]); 
@@ -416,11 +411,14 @@ void RevisedSimplex_Debug(Model* model){
     printf(" %i ", model->basics_vector[i]); 
   }
   printf("\n");
+  printf("===================================================================\n");
+
   while (termination != 1) {
     int feasibility_check = 0;
     printf("Beginning solver iteration %i ... \n", model->solver_iterations);
     printf("Getting the B matrix:\n");
     double **B = Get_BasicsMatrix(model);
+    printf("===================================================================\n");
 
     for (size_t i = 0; i < n; i++) {
       for (size_t j = 0; j < n; j++) {
@@ -430,6 +428,7 @@ void RevisedSimplex_Debug(Model* model){
     }
 
     printf("\n");
+    printf("===================================================================\n");
 
     double original_RHS[n];
     for (size_t i = 0; i < n; i++) {
@@ -437,6 +436,7 @@ void RevisedSimplex_Debug(Model* model){
     }
     printf("Inverting the B matrix now:\n");
     InvertMatrix(B, model->num_constraints);
+    printf("===================================================================\n");
 
     for (size_t i = 0; i < n; i++) {
       for (size_t j = 0; j < n; j++) {
@@ -446,6 +446,7 @@ void RevisedSimplex_Debug(Model* model){
     }
 
     printf("\n");
+    printf("===================================================================\n");
 
 
 
@@ -459,6 +460,7 @@ void RevisedSimplex_Debug(Model* model){
       printf(" %f ", Simplex_multiplier[i]); 
     }
     printf("\n");
+    printf("===================================================================\n");
 
     int entering_var_idx = 0;
     int entering_var = 0;
@@ -480,9 +482,10 @@ void RevisedSimplex_Debug(Model* model){
       best_reduced_cost = -DBL_MAX;
       printf("MAXIMIZATION problem detected, choosing the highest reduced cost value\n");
     }
+    printf("===================================================================\n");
 
-
-
+    printf("Getting the entering variable:\n");
+    printf("===================================================================\n");
     // Getting the entering variable
     for (size_t i = 0; i < model->non_basics_count; i++) {
 
@@ -518,6 +521,8 @@ void RevisedSimplex_Debug(Model* model){
     }
     printf("Entering variable index: %i, cost: %f \n", entering_var, best_reduced_cost);
     // If all the reduced costs are positive in a minimization problem / negative in a maximization problem => optimal solution found
+    printf("===================================================================\n");
+
     if (feasibility_check == model->non_basics_count) {
       printf("Optimal solution found, terminating!\n");
       termination++;
@@ -528,7 +533,11 @@ void RevisedSimplex_Debug(Model* model){
     double *Pivot = Get_pivot_column(B, model, entering_var);
     //UpdateRhs(model, original_RHS, B); 
     // Getting the exiting variable   
+    printf("Getting the exiting variable:\n");
+    printf("===================================================================\n");
+
     int exiting_var_idx = 0;
+
     int exiting_var = 0;
     double best_ratio = DBL_MAX;
     //
@@ -553,14 +562,15 @@ void RevisedSimplex_Debug(Model* model){
     printf("The exiting variable is %i with ratio of %f \n", exiting_var, best_ratio, exiting_var_idx );
 
 
+    printf("===================================================================\n");
 
     model->non_basics[entering_var_idx] = exiting_var;
     model->basics_vector[exiting_var_idx] = entering_var;
     // model->basics_vector[entering_var_idx] = entering_var;
     // model->non_basics[exiting_var_idx] = exiting_var;
     // //
-    printf("Entering variable:%i at position %i \n", entering_var + 1, entering_var_idx);
-    printf("Exiting variable:%i at position: %i \n",exiting_var + 1,exiting_var_idx);
+    printf("Entering variable:%i at position %i \n", entering_var, entering_var_idx);
+    printf("Exiting variable:%i at position: %i \n",exiting_var,exiting_var_idx);
     printf("Non basics updated:\n");
     for (size_t i = 0; i < model->non_basics_count; i++) {
       printf(" %i ", model->non_basics[i]); 
@@ -582,6 +592,8 @@ void RevisedSimplex_Debug(Model* model){
 
     printf("\n");
     printf("Iteration %i ends here, press any key to continue!\n", model->solver_iterations - 1);
+    printf("===================================================================\n");
+
     getchar();
   }
 }
@@ -828,21 +840,21 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
     if (model->coeffs[basic_idx] > 9000.0 && rhs_vector[i] > 0) {
       printf("Model Infeasible. Terminating!\n");
       exit(0);
-        
+
     }
-    
+
 
     if (model->coeffs[basic_idx] == 0 ) {
       continue;
 
     }
-    
+
     double value = (model->coeffs[basic_idx] * rhs_vector[i]) * -1;
     model->objective_function += value;
 
     if (model->objective_function > 9000 * 0.5) {
-        printf("Model Infeasible. Artificial variable x%i has a positive RHS value Terminating!\n", basic_idx);
-        exit(0);
+      printf("Model Infeasible. Artificial variable x%i has a positive RHS value Terminating!\n", basic_idx);
+      exit(0);
     }
     if ( rhs_vector[i] == 0 ) {
       continue;
