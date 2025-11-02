@@ -524,7 +524,7 @@ void RevisedSimplex_Debug(Model* model){
     printf("===================================================================\n");
 
     if (feasibility_check == model->non_basics_count) {
-      printf("Optimal solution found, terminating!\n");
+      printf("Solver loop terminated!\n");
       termination++;
       Get_ObjectiveFunction(model, original_RHS);
       break;
@@ -679,7 +679,7 @@ void RevisedSimplex(Model* model){
     }
     // If all the reduced costs are positive in a minimization problem / negative in a maximization problem => optimal solution found
     if (feasibility_check == model->non_basics_count) {
-      printf("Optimal solution found, terminating!\n");
+      printf("Solver loop terminated!\n");
       termination++;
       Get_ObjectiveFunction(model, original_RHS);
       break;
@@ -838,13 +838,13 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
   for (int i = 0; i < n; i++) {
     int basic_idx = model->basics_vector[i];
     // If there is a basic artificial value with a positive RHS value -> Infeasibility!
-    if (model->coeffs[basic_idx] > 9000.0 && rhs_vector[i] > 0) {
-      printf("Model Infeasible. Terminating!\n");
+    if (model->coeffs[basic_idx] * -1 > 9000.0 && rhs_vector[i] > 0) {
+      printf("Model Infeasible. Artificial basic variable has a positive RHS value. Terminating!\n");
       exit(0);
 
     }
 
-
+    // Ignoring slacks in the computation and printing statement
     if (model->coeffs[basic_idx] == 0 ) {
       continue;
 
@@ -857,7 +857,7 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
       continue;
     }
     printf("Value of the variable x%i is %f with a coefficient of %f \n", basic_idx +1, rhs_vector[i], model->coeffs[basic_idx] * -1);
-
+    printf("Optimal solution found!");
 
 
   }
