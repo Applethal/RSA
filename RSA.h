@@ -818,11 +818,7 @@ void UpdateRhs(Model* model, double *rhs_vector_copy, double** B) {
 
 
   for (int i = 0; i < n; i++) {
-    if (temp[i] < 0) {
-      printf("Negative RHS value detected, LP model is infeasible. Terminating!\n");
-      exit(0);
-    }
-
+  
     rhs_vector_copy[i] = temp[i];
   }
 
