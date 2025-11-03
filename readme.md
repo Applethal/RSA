@@ -3,6 +3,9 @@ STILL WORK IN PROGRESS!!!
 
 TODO: 
 
+
+
+
 1- Add error handling.
 
 
@@ -14,6 +17,7 @@ TODO:
 
 5- <del> Add debug mode </del>.
 
+6- Using Gauss' pivoting technique for matrix inversion is an effort of  $O(n^3)$, can I do better? 
 
 # How to contribute 
 

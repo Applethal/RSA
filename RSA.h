@@ -239,16 +239,7 @@ Model* ReadCsv(FILE *csvfile) {
   model->non_basics_count = non_basic_idx;
 
   model->objective_function = 0.0;
-  printf("Objective function mode: %s\n", model->objective);
-  printf("Number of variables: %d\n", model->num_vars);
-  printf("Number of constraints: %d\n", model->num_constraints);
-  printf("Objective coefficients (Slack and Artificial coeffs included):");
-  for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
-    printf(" %.1f", model->coeffs[i]);  
-  }
-  printf("\n\n");
-
-
+ 
 
   // Converting the problem to its opposite objective direction
   if (strcmp(model->objective, "MINIMIZE") == 0) {
@@ -852,17 +843,66 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
     if ( rhs_vector[i] == 0 ) {
       continue;
     }
-    printf("Value of the variable x%i is %f with a coefficient of %f \n", basic_idx +1, rhs_vector[i], model->coeffs[basic_idx] * -1);
-    printf("Optimal solution found!");
+    printf("Value of the variable x%i is %f with a coefficient of %f \n", basic_idx, rhs_vector[i], model->coeffs[basic_idx] * -1);
 
 
   }
+    printf("Optimal solution found!");
 
 }
 void FreeModel(Model* model){
+
+  size_t size = 0;
+  
+
+  size += sizeof(char) * 8; // Blocks to store the string MINIMIZE/MAXIMIZE
+  size += sizeof(int) * model->num_constraints;
+  size += sizeof(int) * model->num_vars;
+  
+  int total_cols = 0;
+  int num_le = 0, num_ge = 0, num_eq = 0;
+
+  for (size_t i = 0; i < model->num_constraints; i++) {
+    if (model->constraints_symbols[i] == 'L') {
+      
+      num_le++;
+    }
+    if (model->constraints_symbols[i] == 'E') {
+      num_eq++; 
+    }
+    if (model->constraints_symbols[i] == 'G') {
+      num_ge++; 
+    }
+
+  }
+  total_cols = model->num_vars + (num_le + num_ge) +(num_eq + num_ge);
+  size += sizeof(double) * model->num_constraints; // Constraints
+
+
   for (int i = 0; i < model->num_constraints; i++) {
     free(model->columns[i]);
+    size += sizeof(double) * total_cols; // Constraint elements
   }
+
+  size += sizeof(double) * model->num_vars; // Coefficients
+  
+  size += sizeof(double) * model->num_constraints; // RHS vector 
+  
+  size += sizeof(int) * model->num_constraints; // Basics vector
+                                                
+  size += sizeof(double); // Objective function
+
+  size += sizeof(char) * model->num_constraints; // Constraints symbols
+
+  size += sizeof(int) * 2; // Inequalities and equalities count  
+
+  size += sizeof(int) * model->equalities_count; // Equalities vector  
+
+  size += sizeof(int); // Solver iterations 
+
+  size += sizeof(int);
+  size += sizeof(int) * model->non_basics_count;
+
   free(model->columns);
 
   free(model->coeffs);
@@ -871,6 +911,9 @@ void FreeModel(Model* model){
   free(model->constraints_symbols);
   free(model->equalities_vector);
   free(model->non_basics);
+
+
+  printf("Model's estimated memory usage (lower bound): %zu bytes\n", size);
 
   printf("-------------------------------\n");
   printf("Model free'd from the heap\n"); 
