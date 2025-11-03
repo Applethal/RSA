@@ -116,7 +116,7 @@ Model* ReadCsv(FILE *csvfile) {
   model->constraints_symbols = (char*)malloc(model->num_constraints * sizeof(char));
   model->equalities_vector = (int*)malloc(num_artificial * sizeof(int));
   model->basics_vector = (int*)malloc(model->num_constraints * sizeof(int));
-  model->coeffs = (double*)malloc(total_cols * sizeof(double));
+  model->coeffs = (double*)calloc(total_cols, sizeof(double)); 
 
   model->inequalities_count = num_slack_surplus;
   model->equalities_count = num_artificial;
