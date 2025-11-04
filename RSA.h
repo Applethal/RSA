@@ -112,7 +112,7 @@ Model* ReadCsv(FILE *csvfile) {
   model->rhs_vector = (double*)malloc(model->num_constraints * sizeof(double));
   model->constraints_symbols = (char*)malloc(model->num_constraints * sizeof(char));
   model->equalities_vector = (int*)malloc(num_artificial * sizeof(int));
-  model->basics_vector = (int*)malloc(model->num_constraints * sizeof(int));
+  model->basics_vector = (int*)calloc(model->num_constraints,sizeof(int));
   model->coeffs = (double*)calloc(total_cols, sizeof(double)); 
 
   model->inequalities_count = num_slack_surplus;
@@ -627,7 +627,7 @@ void RevisedSimplex_Debug(Model* model){
     printf("\n");
 
     double best_reduced_cost = -DBL_MAX;
-    printf("MAXIMIZATION problem (converted), choosing the highest reduced cost value\n");
+    printf("MAXIMIZATION problem (after conversion), choosing the highest reduced cost value\n");
     
     printf("===================================================================\n");
 
