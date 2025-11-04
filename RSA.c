@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
 
 
 
-  printf("Starting solving\n"); 
+  printf("Starting solver, to enable iterative debugging add the flag '-Debug' as an argument after the file path. \n"); 
 
   printf("\n");
 
