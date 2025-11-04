@@ -242,15 +242,14 @@ Model* ReadCsv(FILE *csvfile) {
  
 
   // Converting the problem to its opposite objective direction
-  if (strcmp(model->objective, "MINIMIZE") == 0) {
-    for (int i = 0; i < model->num_vars; i++) {
+  for (int i = 0; i < model->num_vars; i++) {
       model->coeffs[i] *= -1;
     }
+  if (strcmp(model->objective, "MINIMIZE") == 0) {
+    
     strcpy(model->objective, "MAXIMIZE");
   } else {
-    for (int i = 0; i < model->num_vars; i++) {
-      model->coeffs[i] *= -1;
-    }
+    
     strcpy(model->objective, "MINIMIZE");
   }
 
@@ -681,7 +680,7 @@ void RevisedSimplex(Model* model){
     double best_ratio = DBL_MAX;
     //
     for (size_t i = 0; i < model->num_constraints; i++) {
-      if (Pivot[i] == 1e-6) {
+      if (Pivot[i] <= 1e-6) {
         continue;
       }
       double ratio = original_RHS[i] / Pivot[i];
