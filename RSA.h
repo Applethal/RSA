@@ -383,7 +383,7 @@ void RevisedSimplex(Model* model){
 
     double best_reduced_cost = -DBL_MAX;
 
-    // Getting the entering variable (always use MAXIMIZE logic)
+    // Getting the entering variable 
     for (size_t i = 0; i < model->non_basics_count; i++) {
       int non_basic_idx = model->non_basics[i]; 
       double reduced_cost = Get_ReducedPrice(model, B, non_basic_idx, Simplex_multiplier);
@@ -511,21 +511,21 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
   for (int i = 0; i < n; i++) {
     int basic_idx = model->basics_vector[i];
     
-    // Check for infeasibility: artificial variable with positive RHS
+    // Infeasibility check!
     if (fabs(model->coeffs[basic_idx]) > 9000.0 && rhs_vector[i] > 1e-6) {
       printf("Model Infeasible. Artificial basic variable has a positive RHS value. Terminating!\n");
       exit(0);
     }
 
-    // Calculate objective contribution
+    
     obj_value += model->coeffs[basic_idx] * rhs_vector[i];
 
-    // Print non-zero, non-slack variables
+    
     if (fabs(model->coeffs[basic_idx]) > 1e-6 && 
         fabs(model->coeffs[basic_idx]) < 9000.0 && 
         rhs_vector[i] > 1e-6) {
       
-      // Convert back to original coefficient if MINIMIZE
+      // Convert back to original coefficient if it's a minimization problem originally
       double original_coeff = model->coeffs[basic_idx];
       if (strcmp(model->objective, "MINIMIZE") == 0) {
         original_coeff *= -1;
@@ -536,7 +536,7 @@ void Get_ObjectiveFunction(Model* model, double *rhs_vector) {
     }
   }
   
-  // Convert objective value back if original was MINIMIZE
+  // Same logic applies
   if (strcmp(model->objective, "MINIMIZE") == 0) {
     obj_value *= -1;
   }
