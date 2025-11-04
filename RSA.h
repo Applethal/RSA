@@ -51,7 +51,7 @@ Model* ReadCsv(FILE *csvfile) {
   // Remove newline
   line[strcspn(line, "\r\n")] = 0;
 
-  // Store ORIGINAL objective
+  // Storing objective
   model->objective = (char*)malloc(strlen(line) + 1);
   strcpy(model->objective, line);
   
@@ -205,12 +205,12 @@ Model* ReadCsv(FILE *csvfile) {
 
   model->solver_iterations = 1;
 
-  // Set objective coefficients for ORIGINAL variables
+  // Set objective coefficients
   for (int i = 0; i < model->num_vars; i++) {
     model->coeffs[i] = objective_coeffs[i];
   }
 
-  // Apply Big M to artificial variables BEFORE conversion
+  // Applying Big M to artificial variables 
   int artificial_start = model->num_vars + model->inequalities_count;
   double BIG_M = 9999.0;
   for (int i = 0; i < model->equalities_count; i++) {
@@ -221,7 +221,7 @@ Model* ReadCsv(FILE *csvfile) {
     }
   }
 
-  // Convert MINIMIZE to MAXIMIZE by negating ALL coefficients
+  // Converting MINIMIZE to MAXIMIZE by negating ALL coefficients
   if (strcmp(model->objective, "MINIMIZE") == 0) {
     for (int i = 0; i < total_cols; i++) {
       model->coeffs[i] *= -1;
@@ -630,7 +630,7 @@ void RevisedSimplex_Debug(Model* model){
     printf("Getting the entering variable:\n");
     printf("===================================================================\n");
     
-    // Getting the entering variable (always MAXIMIZE logic)
+    // Getting the entering variable 
     for (size_t i = 0; i < model->non_basics_count; i++) {
       int non_basic_idx = model->non_basics[i]; 
       double reduced_cost = Get_ReducedPrice(model, B, non_basic_idx, Simplex_multiplier);
@@ -722,7 +722,7 @@ void RevisedSimplex_Debug(Model* model){
 void FreeModel(Model* model){
   size_t size = 0;
   
-  size += sizeof(char) * 16; // Two objective strings
+  size += sizeof(char) * 8; // objective string
   size += sizeof(int) * model->num_constraints * 2;
   size += sizeof(int) * model->num_vars;
   
