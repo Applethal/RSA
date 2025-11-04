@@ -8,7 +8,6 @@
 
 typedef struct {
   char *objective;   // MINIMIZE or MAXIMIZE 
-  char *converted_objective; // If minimization problem -> maximize, I am using this just to reduce the number of if statements when building logic
   int num_constraints; // Number of constraints
   int num_vars;       // Number of variables
   double **columns;   // Constraints x variables coeffs matrix  
@@ -56,15 +55,12 @@ Model* ReadCsv(FILE *csvfile) {
   model->objective = (char*)malloc(strlen(line) + 1);
   strcpy(model->objective, line);
   
-  // We'll always convert to MAXIMIZE
-  model->converted_objective = (char*)malloc(strlen("MAXIMIZE") + 1);
-  strcpy(model->converted_objective, "MAXIMIZE");
+
 
   // Line 2: Read objective coefficients and count variables
   if (!fgets(line, sizeof(line), csvfile)) {
     fprintf(stderr, "Error: Could not read objective coefficients\n");
     free(model->objective);
-    free(model->converted_objective);
     free(model);
     return NULL;
   }
@@ -749,7 +745,6 @@ void FreeModel(Model* model){
 
   free(model->columns);
   free(model->objective);
-  free(model->converted_objective);
   free(model->coeffs);
   free(model->rhs_vector);
   free(model->basics_vector);
