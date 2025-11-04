@@ -4,23 +4,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <float.h>
+#include <float.h> // Do I really need this to setup the Big Ms? lol
 
 typedef struct {
-  char *objective;   // MINIMIZE or MAXIMIZE (stores ORIGINAL objective)
-  char *converted_objective; // Stores the converted objective (always MAXIMIZE)
+  char *objective;   // MINIMIZE or MAXIMIZE 
+  char *converted_objective; // If minimization problem -> maximize, I am using this just to reduce the number of if statements when building logic
   int num_constraints; // Number of constraints
   int num_vars;       // Number of variables
   double **columns;   // Constraints x variables coeffs matrix  
-  double *coeffs;     // Variable coefficients (converted for maximization)
+  double *coeffs;     // Variable objective coefficients 
   double *rhs_vector; // Right hand side vector of the constraints 
   int *basics_vector; // Vector where I keep track of the basic variables
-  double objective_function; // Final objective function 
-  char *constraints_symbols; // Tracks the constraints' symbols
+  double objective_function; 
+  char *constraints_symbols; // Tracks the constraints' symbols, for debugging purposes only
   int inequalities_count;// Counts the number of inequalities
   int equalities_count; // Counts the number of equality constraints
   int *equalities_vector; // Contains the indices of the equality constraints
-  int solver_iterations; // Counts how many iterations
+  int solver_iterations; 
   int *non_basics; // Contains indices of non-basic variables
   int non_basics_count; // Counts the number of non-basic variables 
 } Model;
