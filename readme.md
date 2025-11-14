@@ -44,6 +44,7 @@ MAXIMIZE
 4.5, 18, <=, 81
 ```
 Which corresponds to:
+
 $$
 \begin{aligned}
 \text{MAXIMIZE } & z = 9x_1 + 7x_2 \\
@@ -64,6 +65,7 @@ MINIMIZE
 2,0,1,=,1
 ```
 Which corresponds to:
+
 $$
 \begin{aligned}
 \text{MINIMIZE } \quad 
@@ -81,7 +83,7 @@ Implicitly, all variables are non-negative (of course) you won't need to conside
 ```./RSA "filepath" "-Debug"```
 
 
-Where `filepath`is the `.csv` file path, `-Debug` is an optional flag that can be added as an argument, allowing you to see the solver operations step by step, the displayed indices are 0 indexed. The program will convert the problem to its canonical form then iteratively execute the algorithm until it terminates. 
+Where `filepath`is the `.csv` file path, `-Debug` is an optional flag that can be added as an argument, allowing you to see the solver operations step by step, the displayed indices are 0 indexed. The program will convert the problem to its canonical form then iteratively execute the algorithm until it terminates. The reason I am using the .csv file format is because of how portable it is + you can easily view whether the entries are valid using a Graphical reader to easily display whether data is missing.
 
 
 
