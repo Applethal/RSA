@@ -36,6 +36,7 @@ double* Get_pivot_column(double** B_inv, Model* model, int best_cost_idx);
 void UpdateRhs(Model* model, double* rhs_vector_copy, double** B);
 void Get_ObjectiveFunction(Model* model, double *rhs_vector); 
 void RevisedSimplex_Debug(Model* model);
+void ValidateModelPointers(Model* model); 
 
 Model* ReadCsv(FILE *csvfile) {
   Model *model = (Model*)malloc(sizeof(Model));
@@ -141,8 +142,8 @@ Model* ReadCsv(FILE *csvfile) {
 
     // Read operator (<=, >=, =)
     if (token == NULL) {
-      fprintf(stderr, "Error: Missing operator in constraint %d\n", i);
-      continue;
+      fprintf(stderr, "Error: Missing operator or variable coefficient in constraint %d\n, make sure all the variables have exactly %i variables", i, model->num_vars);
+      exit(0);
     }
 
     // Remove spaces from operator token
@@ -159,7 +160,7 @@ Model* ReadCsv(FILE *csvfile) {
     token = strtok(NULL, ",");
     if (token == NULL) {
       fprintf(stderr, "Error: Missing RHS in constraint %d\n", i);
-      continue;
+      exit(0);
     }
     model->rhs_vector[i] = atof(token);
 
@@ -264,6 +265,15 @@ void PrintColumns(Model* model){
     printf("\n");
   }
   printf("\n");
+
+  printf("Constraint symbols in the original problem:\n");
+
+  for (size_t i = 0; i < model->num_constraints; i++) {
+    printf(" %c ", model->constraints_symbols[i]); 
+  }
+  printf("\n");
+
+
 }
 
 void InvertMatrix(double **matrix, int n) {
@@ -353,7 +363,7 @@ double** Get_BasicsMatrix(Model* model) {
 void RevisedSimplex(Model* model){
   int termination = 0;
   int n = model->num_constraints;
-  int MAX_ITERATIONS = model->num_vars * 100;
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // In theory, the worst case is n*m where m is the number of constraints and n the number of variables in the model
 
   while (termination != 1) {
     if (model->solver_iterations == MAX_ITERATIONS) {
@@ -559,7 +569,7 @@ void RevisedSimplex_Debug(Model* model){
   }
   printf("\n");
   printf("===================================================================\n");
-  int max_iterations = model->num_vars * 100;
+  int max_iterations = (model->num_vars * model->num_constraints) + 1; // the worst case number of iterations in theory is n*m, where m is the number of constraints and n is the number  of variables in the model 
 
   while (termination != 1) {
     int feasibility_check = 0;
@@ -756,5 +766,33 @@ void FreeModel(Model* model){
   printf("-------------------------------\n");
   printf("Model free'd from the heap\n"); 
 }
+
+void ValidateModelPointers(Model* model) {
+    if (!model) {
+        fprintf(stderr, "Fatal Error: Model pointer is NULL.\n");
+        exit(0);
+    }
+
+    if (!model->columns ||
+        !model->objective ||
+        !model->coeffs ||
+        !model->rhs_vector ||
+        !model->basics_vector ||
+        !model->constraints_symbols ||
+        !model->equalities_vector ||
+        !model->non_basics)
+    {
+        fprintf(stderr, "Fatal Error: One or more model pointers are NULL.\n");
+        exit(0);
+    }
+
+    for (int i = 0; i < model->num_constraints; i++) {
+        if (!model->columns[i]) {
+            fprintf(stderr, "Fatal Error: columns[%d] is NULL.\n", i);
+            exit(0);
+        }
+    }
+}
+
 
 #endif

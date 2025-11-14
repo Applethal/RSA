@@ -23,11 +23,11 @@ int main(int argc, char *argv[]) {
     printf("Cannot open file\n");
     exit(1);
   }
-  // char  *objective= argv[2];
 
   Model *model = ReadCsv(file);
 
 
+  ValidateModelPointers(model); 
 
 
 
