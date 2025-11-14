@@ -380,7 +380,10 @@ void RevisedSimplex(Model* model){
       original_RHS[i] = model->rhs_vector[i]; 
     }
 
-    InvertMatrix(B, model->num_constraints);
+    if (model->solver_iterations > 1) {
+     InvertMatrix(B, model->num_constraints);
+     
+    }
     double *Simplex_multiplier = Get_SimplexMultiplier(model, B);
 
     int entering_var_idx = 0;
@@ -597,11 +600,11 @@ void RevisedSimplex_Debug(Model* model){
     for (size_t i = 0; i < n; i++) {
       original_RHS[i] = model->rhs_vector[i]; 
     }
+    if (model->solver_iterations > 1) {
     printf("Inverting the B matrix now:\n");
     InvertMatrix(B, model->num_constraints);
     printf("===================================================================\n");
-
-    for (size_t i = 0; i < n; i++) {
+   for (size_t i = 0; i < n; i++) {
       for (size_t j = 0; j < n; j++) {
         printf(" %f ", B[i][j]); 
       } 
@@ -611,6 +614,12 @@ void RevisedSimplex_Debug(Model* model){
     printf("\n");
     printf("===================================================================\n");
 
+
+    } else {
+      printf("Solver iteration 1, skipping matrix inversion sequence\n");
+    }
+    
+   
     printf("Getting the simplex multiplier P vector:\n");
     double *Simplex_multiplier = Get_SimplexMultiplier(model, B);
     printf("P vector elements:\n");
