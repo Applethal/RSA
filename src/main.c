@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "RSA.h"
 #include <time.h>
+
 int main(int argc, char *argv[]) {
   clock_t begin = clock(); 
   int Debug = 0;
@@ -9,8 +10,6 @@ int main(int argc, char *argv[]) {
   if (argc >= 3 && strcmp(argv[2], "-Debug") == 0) {
     Debug = 1;
   }
-
-
 
 
   if (argc < 2) {
