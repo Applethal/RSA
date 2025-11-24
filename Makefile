@@ -23,4 +23,7 @@ run: $(TARGET)
 debug: $(TARGET)
 	$(TARGET) $(INPUT) -Debug
 
+clean:
+	rm -rf build/*
+
 .PHONY: run debug
