@@ -1,6 +1,6 @@
 GCC			= gcc
 
-INPUT		= instances/model_9.csv
+INPUT		= Instances/model_9.csv
 
 SRC_DIR		= src
 BUILD_DIR	= build

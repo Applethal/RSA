@@ -185,7 +185,7 @@ Model *ReadCsv(FILE *csvfile)
       artificial_idx++;
     }
     else
-    {
+  {
       fprintf(stderr, "Error: Invalid operator '%s' in constraint %d\n", op, i);
     }
   }
@@ -213,7 +213,7 @@ Model *ReadCsv(FILE *csvfile)
       model->coeffs[artificial_start + i] = -BIG_M; // Penalty for MAX
     }
     else
-    {
+  {
       model->coeffs[artificial_start + i] = BIG_M; // Penalty for MIN
     }
   }
@@ -444,6 +444,13 @@ void RevisedSimplex(Model *model)
       printf("Solver loop terminated!\n");
       termination++;
       Get_ObjectiveFunction(model, original_RHS);
+      for (size_t i = 0; i < model->num_constraints; i++)
+      {
+        free(B[i]);
+      }
+      free(B);
+      free(Simplex_multiplier);
+
       break;
     }
 
@@ -581,8 +588,8 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector)
     obj_value += model->coeffs[basic_idx] * rhs_vector[i];
 
     if (fabs(model->coeffs[basic_idx]) > 1e-6 &&
-        fabs(model->coeffs[basic_idx]) < 9000.0 &&
-        rhs_vector[i] > 1e-6)
+      fabs(model->coeffs[basic_idx]) < 9000.0 &&
+      rhs_vector[i] > 1e-6)
     {
 
       // Convert back to original coefficient if it's a minimization problem originally
@@ -679,7 +686,7 @@ void RevisedSimplex_Debug(Model *model)
       printf("===================================================================\n");
     }
     else
-    {
+  {
       printf("Solver iteration 1, skipping matrix inversion sequence\n");
     }
 
@@ -742,7 +749,16 @@ void RevisedSimplex_Debug(Model *model)
       printf("Solver loop terminated!\n");
       termination++;
       Get_ObjectiveFunction(model, original_RHS);
+      for (size_t i = 0; i < model->num_constraints; i++)
+      {
+        free(B[i]);
+      }
+      free(B);
+      free(Simplex_multiplier);
+
+
       break;
+
     }
 
     double *Pivot = Get_pivot_column(B, model, entering_var);
@@ -863,13 +879,13 @@ void ValidateModelPointers(Model *model)
   }
 
   if (!model->columns ||
-      !model->objective ||
-      !model->coeffs ||
-      !model->rhs_vector ||
-      !model->basics_vector ||
-      !model->constraints_symbols ||
-      !model->equalities_vector ||
-      !model->non_basics)
+    !model->objective ||
+    !model->coeffs ||
+    !model->rhs_vector ||
+    !model->basics_vector ||
+    !model->constraints_symbols ||
+    !model->equalities_vector ||
+    !model->non_basics)
   {
     fprintf(stderr, "Fatal Error: One or more model pointers are NULL.\n");
     exit(0);
