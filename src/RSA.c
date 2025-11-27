@@ -864,12 +864,12 @@ void FreeModel(Model *model)
   free(model->constraints_symbols);
   free(model->equalities_vector);
   free(model->non_basics);
-
+  free(model);
   printf("Model's estimated memory usage: %zu bytes\n", size);
   printf("-------------------------------\n");
   printf("Model free'd from the heap\n");
 }
-
+  
 void ValidateModelPointers(Model *model)
 {
   if (!model)
