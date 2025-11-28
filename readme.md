@@ -1,13 +1,9 @@
 # Revised Simplex Algorithm in C
-STILL WORK IN PROGRESS!!!
+
 
 TODO: 
 
-
-
-
 <del>1- Add error handling.</del>
-
 
 2- <del>Add infeasibility check while solving.</del>
 
@@ -17,7 +13,7 @@ TODO:
 
 5- <del> Add debug mode </del>.
 
-6- Using Gauss' pivoting technique for matrix inversion is an effort of  $O(n^3)$, can I do better? 
+6- <del>Using Gauss' pivoting technique for matrix inversion is an effort of  $O(n^3)$, can I do better? </del> After learning a bit more on this topic, it would appear that using this algorithm is suitable for this application.
 
 # How to contribute 
 
@@ -78,12 +74,12 @@ $$
 \end{aligned}
 $$
 
-Implicitly, all variables are non-negative (of course) you won't need to consider this. To run this program, simply pass the text file and objective arguments:
+Implicitly, all variables are non-negative (of course) you won't need to consider this. Explicitly adding non-negativity domain definitions for each variable will still allow the program to work and output the correct answers but it will result in having extra memory usage and more runtime. To run this program, simply pass the text file and objective arguments:
 
 ```./RSA "filepath" "-Debug"```
 
 
-Where `filepath`is the `.csv` file path, `-Debug` is an optional flag that can be added as an argument, allowing you to see the solver operations step by step, the displayed indices are 0 indexed. The program will convert the problem to its canonical form then iteratively execute the algorithm until it terminates. The reason I am using the .csv file format is because of how portable it is + you can easily view whether the entries are valid using a Graphical reader to easily display whether data is missing.
+Where `filepath`is the `.csv` file path, `-Debug` is an optional flag that can be added as an argument, allowing you to see the solver operations step by step, the displayed indices are 0 indexed. The program will convert the problem to its canonical form then iteratively execute the algorithm until it terminates. The reason I am using the .csv file format is because of how portable it is + you can easily view whether the entries are valid using a Graphical CSV reader (e.g. OnlyOffice) to easily display whether data is missing.
 
 
 
