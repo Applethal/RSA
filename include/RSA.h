@@ -39,5 +39,5 @@ void UpdateRhs(Model *model, double *rhs_vector_copy, double **B);
 void Get_ObjectiveFunction(Model *model, double *rhs_vector);
 void RevisedSimplex_Debug(Model *model);
 void ValidateModelPointers(Model *model);
-
+void PrintHelp();
 #endif

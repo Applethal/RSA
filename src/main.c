@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
 
 
   if (argc < 2) {
-    printf("Insert the file, exiting\n");
+    PrintHelp();
     exit(0);
   }
 

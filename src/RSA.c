@@ -7,6 +7,59 @@
 #include <math.h>
 #include <float.h> // Do I really need this to setup the Big Ms? lol
 
+void PrintHelp(){
+
+  printf("NAME\n");
+  printf("     RSA - Linear programming solver using the Revised Simplex Algorithm with the Big M method\n\n");
+  
+  printf("SYNOPSIS\n");
+  printf("     ./RSA csv file path [-Debug]\n\n");
+  
+  printf("DESCRIPTION\n");
+  printf("     RSA is a linear programming solver that implements the Revised\n");
+  printf("     Simplex Algorithm. It reads a linear programming model from a CSV file\n");
+  printf("     and computes the optimal solution for the given objective function and\n");
+  printf("     constraints.\n\n");
+  printf("     The program supports both maximization and minimization objectives and\n");
+  printf("     automatically handles equality and inequality constraints by adding slack\n");
+  printf("     and artificial variables as needed.\n\n");
+  printf("     Visit the Github repo https://github.com/Applethal/RSA to see an example of how the CSV data input should look like.\n");
+  
+  printf("OPTIONS\n");
+  printf("     csv file path\n");
+  printf("             Path to the input CSV file containing the linear programming\n");
+  printf("             model. This argument is required. The CSV file should be properly\n");
+  printf("             formatted with the objective function, variables, and constraints.\n\n");
+  printf("     -Debug  Enables debug mode. When this flag is provided, the program\n");
+  printf("             displays detailed information about the model and shows iterative\n");
+  printf("             steps during the solving process. \n");
+  
+  printf("EXIT STATUS\n");
+  printf("     0       Optimal solution obtained.\n");
+  printf("     1       File opening error (file does not exist or cannot be accessed).\n");
+  printf("     Other   Model is infeasible or unbounded.\n\n");
+  
+  
+  printf("OUTPUT\n");
+  printf("     The program displays:\n");
+  printf("     - Start message with usage hint\n");
+  printf("     - Debug information (if -Debug flag is used)\n");
+  printf("     - RSA iterations count\n");
+  printf("     - Final objective function value and the values for each variables in the final basis.\n");
+  printf("     - Solving time in seconds\n");
+  printf("     - Model's size in bytes\n");
+
+  printf("AUTHOR\n");
+  printf("     Written by Applethal / Saad Nordine\n\n");
+  
+  printf("REPORTING BUGS\n");
+  printf("     Please report any bugs in the issues page in https://github.com/Applethal/RSA\n\n");
+
+
+
+
+
+}
 Model *ReadCsv(FILE *csvfile)
 {
   Model *model = (Model *)malloc(sizeof(Model));
