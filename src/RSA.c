@@ -960,6 +960,7 @@ void FreeModel(Model *model)
   size += sizeof(int) * model->equalities_count;   // Equalities vector
   size += sizeof(int);                             // Solver iterations
   size += sizeof(int) * model->non_basics_count;
+  size += sizeof(double); // Big-M definition
 
   free(model->columns);
   free(model->objective);
