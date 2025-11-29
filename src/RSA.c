@@ -7,14 +7,21 @@
 #include <math.h>
 #include <float.h> // Do I really need this to setup the Big Ms? lol
 
+#define MAX_LINE_LENGTH 1024 
+#define MAX_VARS 2000
+#define MAX_CONSTRAINTS 2000 
+#define MAX_MEM_BYTES 1024 // this will limit the constraints matrix memory size, this should be enough for 2000 vars and 2000 constraints
+
+
+
 void PrintHelp(){
 
   printf("NAME\n");
   printf("     RSA - Linear programming solver using the Revised Simplex Algorithm with the Big M method\n\n");
-  
+
   printf("SYNOPSIS\n");
   printf("     ./RSA csv file path [-Debug]\n\n");
-  
+
   printf("DESCRIPTION\n");
   printf("     RSA is a linear programming solver that implements the Revised\n");
   printf("     Simplex Algorithm. It reads a linear programming model from a CSV file\n");
@@ -24,7 +31,7 @@ void PrintHelp(){
   printf("     automatically handles equality and inequality constraints by adding slack\n");
   printf("     and artificial variables as needed.\n\n");
   printf("     Visit the Github repo https://github.com/Applethal/RSA to see an example of how the CSV data input should look like.\n");
-  
+
   printf("OPTIONS\n");
   printf("     csv file path\n");
   printf("             Path to the input CSV file containing the linear programming\n");
@@ -33,13 +40,13 @@ void PrintHelp(){
   printf("     -Debug  Enables debug mode. When this flag is provided, the program\n");
   printf("             displays detailed information about the model and shows iterative\n");
   printf("             steps during the solving process. \n");
-  
+
   printf("EXIT STATUS\n");
   printf("     0       Optimal solution obtained.\n");
   printf("     1       File opening error (file does not exist or cannot be accessed).\n");
   printf("     Other   Model is infeasible or unbounded.\n\n");
-  
-  
+
+
   printf("OUTPUT\n");
   printf("     The program displays:\n");
   printf("     - Start message with usage hint\n");
@@ -51,7 +58,7 @@ void PrintHelp(){
 
   printf("AUTHOR\n");
   printf("     Written by Applethal / Saad Nordine\n\n");
-  
+
   printf("REPORTING BUGS\n");
   printf("     Please report any bugs in the issues page in https://github.com/Applethal/RSA\n\n");
 
@@ -63,12 +70,20 @@ void PrintHelp(){
 Model *ReadCsv(FILE *csvfile)
 {
   Model *model = (Model *)malloc(sizeof(Model));
-  char line[1024];
+  char line[MAX_LINE_LENGTH];
 
   // Line 1: Read objective type (MINIMIZE or MAXIMIZE)
   if (!fgets(line, sizeof(line), csvfile))
   {
     fprintf(stderr, "Error: Could not read objective type\n");
+    free(model);
+    return NULL;
+  }
+
+
+  size_t len = strlen(line);
+  if (len == sizeof(line) - 1 && line[len-1] != '\n') {
+    fprintf(stderr, "Error: Line too long (max %d chars)\n", MAX_LINE_LENGTH);
     free(model);
     return NULL;
   }
@@ -96,6 +111,14 @@ Model *ReadCsv(FILE *csvfile)
     if (*p == ',')
       model->num_vars++;
   }
+  if (model->num_vars > MAX_VARS) {
+    fprintf(stderr, "Error: Too many variables (%d). Maximum allowed: %d\n", 
+            model->num_vars, MAX_VARS);
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+
 
   // Parse objective coefficients
   double *objective_coeffs = (double *)malloc(model->num_vars * sizeof(double));
@@ -121,11 +144,34 @@ Model *ReadCsv(FILE *csvfile)
     else if (strstr(line, "="))
       num_eq++;
     model->num_constraints++;
+
+
+    if (model->num_constraints > MAX_CONSTRAINTS) {
+      fprintf(stderr, "Error: Too many constraints (%d). Maximum allowed: %d\n",
+              model->num_constraints, MAX_CONSTRAINTS);
+      free(objective_coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
+    }
   }
 
   int num_slack_surplus = num_le + num_ge;
   int num_artificial = num_eq + num_ge;
   int total_cols = model->num_vars + num_slack_surplus + num_artificial;
+
+
+  size_t memory_needed = (size_t)model->num_constraints * total_cols * sizeof(double);
+  size_t max_memory = (size_t)MAX_MEM_BYTES * 1024 * 1024;
+
+  if (memory_needed > max_memory) {
+    fprintf(stderr, "Error: Model too large. Requires %zu MB, maximum is %d MB\n",
+            memory_needed / (1024 * 1024), MAX_MEM_BYTES);
+    free(objective_coeffs);
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
 
   // Allocate model arrays
   model->columns = (double **)malloc(model->num_constraints * sizeof(double *));
@@ -249,7 +295,7 @@ Model *ReadCsv(FILE *csvfile)
   }
 
   model->solver_iterations = 1;
-  
+
   double biggest_coeff = 0;
 
 
@@ -447,13 +493,14 @@ void RevisedSimplex(Model *model)
 {
   int termination = 0;
   size_t n = model->num_constraints;
-  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // In theory, the worst case is n*m where m is the number of constraints and n the number of variables in the model
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // In theory, the worst case is 2^n where m is the number of constraints and n the number of variables in the model
 
   while (termination != 1)
   {
     if (model->solver_iterations == MAX_ITERATIONS)
     {
       printf("Max iterations reached. Terminating!\n");
+      FreeModel(model);
       exit(0);
     }
 
@@ -692,7 +739,7 @@ void RevisedSimplex_Debug(Model *model)
   }
   printf("\n");
   printf("===================================================================\n");
-  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // the worst case number of iterations in theory is n*m, where m is the number of constraints and n is the number  of variables in the model
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // the worst case number of iterations in theory is 2^n, where m is the number of constraints and n is the number  of variables in the model
 
   while (termination != 1)
   {
@@ -700,6 +747,7 @@ void RevisedSimplex_Debug(Model *model)
     if (model->solver_iterations == MAX_ITERATIONS)
     {
       printf("Max iterations reached. Terminating!\n");
+      FreeModel(model);
       exit(0);
     }
 
@@ -926,7 +974,7 @@ void FreeModel(Model *model)
   printf("-------------------------------\n");
   printf("Model free'd from the heap\n");
 }
-  
+
 void ValidateModelPointers(Model *model)
 {
   if (!model)
