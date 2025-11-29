@@ -74,7 +74,7 @@ $$
 \end{aligned}
 $$
 
-Implicitly, all variables are non-negative (of course) you won't need to consider this. Explicitly adding non-negativity domain definitions for each variable will still allow the program to work and output the correct answers but it will result in having extra memory usage and more runtime. To run this program, simply pass the text file and objective arguments:
+Implicitly, all variables are non-negative (of course) you won't need to consider this. Explicitly adding non-negativity domain definitions for each variable will still allow the program to work and output the correct answers but it will result in having extra memory usage and more runtime. The algorithm uses the double floating precision. To run this program, simply pass the text file and objective arguments:
 
 ```./RSA "filepath" "-Debug"```
 

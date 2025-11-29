@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
     printf("Number of variables: %d\n", model->num_vars);
     printf("Number of constraints: %d\n", model->num_constraints);
     printf("Objective coefficients (Slack and Artificial coeffs included):");
+    printf("Big M: %.1f", model->BIG_M);
     for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
       printf(" %.1f", model->coeffs[i]);  
     }

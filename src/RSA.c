@@ -249,25 +249,31 @@ Model *ReadCsv(FILE *csvfile)
   }
 
   model->solver_iterations = 1;
+  
+  double biggest_coeff = 0;
+
 
   // Set objective coefficients
   for (int i = 0; i < model->num_vars; i++)
   {
+    if (biggest_coeff < objective_coeffs[i]);{
+      biggest_coeff = objective_coeffs[i];
+    }
     model->coeffs[i] = objective_coeffs[i];
   }
 
   // Applying Big M to artificial variables
   int artificial_start = model->num_vars + model->inequalities_count;
-  double BIG_M = 9999.0;
+  model->BIG_M = biggest_coeff * 10000;
   for (int i = 0; i < model->equalities_count; i++)
   {
     if (strcmp(model->objective, "MAXIMIZE") == 0)
     {
-      model->coeffs[artificial_start + i] = -BIG_M; // Penalty for MAX
+      model->coeffs[artificial_start + i] = -model->BIG_M; // Penalty for MAX
     }
     else
   {
-      model->coeffs[artificial_start + i] = BIG_M; // Penalty for MIN
+      model->coeffs[artificial_start + i] = model->BIG_M; // Penalty for MIN
     }
   }
 
@@ -333,7 +339,7 @@ void PrintColumns(Model *model)
   printf("\n");
 }
 
-void InvertMatrix(double **matrix, int n)
+void InvertMatrix(double **matrix, size_t n)
 {
   double **augmented = (double **)malloc(n * sizeof(double *));
   for (int i = 0; i < n; i++)
@@ -440,7 +446,7 @@ double **Get_BasicsMatrix(Model *model)
 void RevisedSimplex(Model *model)
 {
   int termination = 0;
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // In theory, the worst case is n*m where m is the number of constraints and n the number of variables in the model
 
   while (termination != 1)
@@ -551,7 +557,7 @@ void RevisedSimplex(Model *model)
 
 double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multiplier_vector)
 {
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   double dot_product = 0.0;
 
   for (int i = 0; i < n; i++)
@@ -565,7 +571,7 @@ double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multi
 
 double *Get_SimplexMultiplier(Model *model, double **B_inv)
 {
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   double *multiplier_vector = (double *)malloc(sizeof(double) * n);
 
   for (int i = 0; i < n; i++)
@@ -584,7 +590,7 @@ double *Get_SimplexMultiplier(Model *model, double **B_inv)
 
 double *Get_pivot_column(double **B_inv, Model *model, int best_cost_idx)
 {
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   double *Pivot = (double *)malloc(sizeof(double) * n);
 
   for (int i = 0; i < n; i++)
@@ -602,7 +608,7 @@ double *Get_pivot_column(double **B_inv, Model *model, int best_cost_idx)
 
 void UpdateRhs(Model *model, double *rhs_vector_copy, double **B)
 {
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   double *temp = (double *)malloc(n * sizeof(double));
 
   for (int i = 0; i < n; i++)
@@ -624,24 +630,23 @@ void UpdateRhs(Model *model, double *rhs_vector_copy, double **B)
 
 void Get_ObjectiveFunction(Model *model, double *rhs_vector)
 {
-  int n = model->num_constraints;
-  double obj_value = 0.0;
+  size_t n = model->num_constraints;
 
   for (int i = 0; i < n; i++)
   {
     int basic_idx = model->basics_vector[i];
 
     // Infeasibility check!
-    if (fabs(model->coeffs[basic_idx]) > 9000.0 && rhs_vector[i] > 1e-6)
+    if (fabs(model->coeffs[basic_idx]) == model->BIG_M  && rhs_vector[i] > 1e-6)
     {
       printf("Model Infeasible. Artificial basic variable has a positive RHS value. Terminating!\n");
       exit(0);
     }
 
-    obj_value += model->coeffs[basic_idx] * rhs_vector[i];
+    model->objective_function += model->coeffs[basic_idx] * rhs_vector[i];
 
     if (fabs(model->coeffs[basic_idx]) > 1e-6 &&
-      fabs(model->coeffs[basic_idx]) < 9000.0 &&
+      fabs(model->coeffs[basic_idx]) < model->BIG_M &&
       rhs_vector[i] > 1e-6)
     {
 
@@ -660,17 +665,16 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector)
   // Same logic applies
   if (strcmp(model->objective, "MINIMIZE") == 0)
   {
-    obj_value *= -1;
+    model->objective_function *= -1;
   }
 
-  model->objective_function = obj_value;
-  printf("Optimal solution found! Objective value: %f\n", obj_value);
+  printf("Optimal solution found! Objective value: %f\n", model->objective_function);
 }
 
 void RevisedSimplex_Debug(Model *model)
 {
   int termination = 0;
-  int n = model->num_constraints;
+  size_t n = model->num_constraints;
   printf("\n");
   printf("===================================================================\n");
 
@@ -688,12 +692,12 @@ void RevisedSimplex_Debug(Model *model)
   }
   printf("\n");
   printf("===================================================================\n");
-  int max_iterations = (model->num_vars * model->num_constraints) + 1; // the worst case number of iterations in theory is n*m, where m is the number of constraints and n is the number  of variables in the model
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1; // the worst case number of iterations in theory is n*m, where m is the number of constraints and n is the number  of variables in the model
 
   while (termination != 1)
   {
     int feasibility_check = 0;
-    if (model->solver_iterations == max_iterations)
+    if (model->solver_iterations == MAX_ITERATIONS)
     {
       printf("Max iterations reached. Terminating!\n");
       exit(0);

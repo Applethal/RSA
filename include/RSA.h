@@ -10,8 +10,8 @@
 typedef struct
 {
   char *objective;     // MINIMIZE or MAXIMIZE
-  int num_constraints; // Number of constraints
-  int num_vars;        // Number of variables
+  size_t num_constraints; // Number of constraints
+  size_t num_vars;        // Number of variables
   double **columns;    // Constraints x variables coeffs matrix
   double *coeffs;      // Variable objective coefficients
   double *rhs_vector;  // Right hand side vector of the constraints
@@ -24,11 +24,12 @@ typedef struct
   int solver_iterations;
   int *non_basics;      // Contains indices of non-basic variables
   int non_basics_count; // Counts the number of non-basic variables
+  double BIG_M; // Big constant for the artificial variables, will equal max(coeffs) * 10000
 } Model;
 
 Model *ReadCsv(FILE *textfile);
 void FreeModel(Model *model);
-void InvertMatrix(double **matrix, int n);
+void InvertMatrix(double **matrix, size_t n);
 void RevisedSimplex(Model *model);
 double **Get_BasicsMatrix(Model *model);
 void PrintColumns(Model *model);
