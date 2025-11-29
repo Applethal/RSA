@@ -256,7 +256,7 @@ Model *ReadCsv(FILE *csvfile)
   // Set objective coefficients
   for (int i = 0; i < model->num_vars; i++)
   {
-    if (biggest_coeff < objective_coeffs[i]);{
+    if (biggest_coeff < objective_coeffs[i]){
       biggest_coeff = objective_coeffs[i];
     }
     model->coeffs[i] = objective_coeffs[i];
