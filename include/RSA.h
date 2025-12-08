@@ -24,7 +24,7 @@ typedef struct
   int solver_iterations;
   int *non_basics;      // Contains indices of non-basic variables
   int non_basics_count; // Counts the number of non-basic variables
-  double BIG_M; // Big constant for the artificial variables, will equal max(coeffs) * 10000
+  double BIG_M; // Big constant for the artificial variables, will equal max(coeffs) * 2
 } Model;
 
 Model *ReadCsv(FILE *textfile);

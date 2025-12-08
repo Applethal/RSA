@@ -310,7 +310,7 @@ Model *ReadCsv(FILE *csvfile)
 
   // Applying Big M to artificial variables
   int artificial_start = model->num_vars + model->inequalities_count;
-  model->BIG_M = biggest_coeff * 10000;
+  model->BIG_M = biggest_coeff * 2;
   for (int i = 0; i < model->equalities_count; i++)
   {
     if (strcmp(model->objective, "MAXIMIZE") == 0)
