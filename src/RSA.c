@@ -387,89 +387,81 @@ void PrintColumns(Model *model)
 
 void InvertMatrix(double **matrix, size_t n)
 {
-  double **augmented = (double **)malloc(n * sizeof(double *));
-  for (int i = 0; i < n; i++)
-  {
-    augmented[i] = (double *)malloc(2 * n * sizeof(double));
-    for (int j = 0; j < n; j++)
-    {
-      augmented[i][j] = matrix[i][j];
-    }
-    for (int j = n; j < 2 * n; j++)
-    {
-      augmented[i][j] = (j - n == i) ? 1.0 : 0.0;
-    }
-  }
+    const double EPS = 1e-12;
 
-  // Gauss-Jordan with partial pivoting
-  for (int i = 0; i < n; i++)
-  {
-    // Find row with largest absolute value in column i
-    int max_row = i;
-    double max_val = fabs(augmented[i][i]);
-    for (int k = i + 1; k < n; k++)
-    {
-      if (fabs(augmented[k][i]) > max_val)
-      {
-        max_val = fabs(augmented[k][i]);
-        max_row = k;
-      }
+    // Single block allocation for the augmented matrix
+    double *block = malloc(n * (2 * n) * sizeof(double));
+    double **aug = malloc(n * sizeof(double *));
+    if (!block || !aug) {
+        printf("ERROR: Out of memory\n");
+        exit(1);
     }
 
-    // Swap rows if needed
-    if (max_row != i)
-    {
-      double *temp = augmented[i];
-      augmented[i] = augmented[max_row];
-      augmented[max_row] = temp;
+    for (size_t i = 0; i < n; i++)
+        aug[i] = block + i * (2 * n);
+
+    // Build augmented matrix
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < n; j++)
+            aug[i][j] = matrix[i][j];
+        for (size_t j = n; j < 2 * n; j++)
+            aug[i][j] = (j - n == i);
     }
 
-    double pivot = augmented[i][i];
-    if (fabs(pivot) < 1e-10)
-    {
-      printf("ERROR: Singular matrix - basis is not invertible!\n");
-      for (int k = 0; k < n; k++)
-      {
-        free(augmented[k]);
-      }
-      free(augmented);
-      exit(1);
-    }
+    // Gauss-Jordan elimination with partial pivoting
+    for (size_t i = 0; i < n; i++) {
 
-    // Scale pivot row
-    for (int j = 0; j < 2 * n; j++)
-    {
-      augmented[i][j] /= pivot;
-    }
+        // Find pivot
+        size_t max_row = i;
+        double max_val = fabs(aug[i][i]);
 
-    // Eliminate column
-    for (int k = 0; k < n; k++)
-    {
-      if (k != i)
-      {
-        double factor = augmented[k][i];
-        for (int j = 0; j < 2 * n; j++)
-        {
-          augmented[k][j] -= factor * augmented[i][j];
+        for (size_t k = i + 1; k < n; k++) {
+            double v = fabs(aug[k][i]);
+            if (v > max_val) {
+                max_val = v;
+                max_row = k;
+            }
         }
-      }
-    }
-  }
 
-  // Copy inverse back
-  for (int i = 0; i < n; i++)
-  {
-    for (int j = 0; j < n; j++)
-    {
-      matrix[i][j] = augmented[i][n + j];
-    }
-  }
+        // Swap
+        if (max_row != i) {
+            double *tmp = aug[i];
+            aug[i] = aug[max_row];
+            aug[max_row] = tmp;
+        }
 
-  for (int i = 0; i < n; i++)
-  {
-    free(augmented[i]);
-  }
-  free(augmented);
+        // Check singularity
+        double pivot = aug[i][i];
+        if (fabs(pivot) < EPS) {
+            printf("ERROR: Singular matrix - basis is not invertible!\n");
+            free(aug);
+            free(block);
+            exit(1);
+        }
+
+        // Normalize pivot row
+        double inv_pivot = 1.0 / pivot;
+        for (size_t j = 0; j < 2 * n; j++)
+            aug[i][j] *= inv_pivot;
+
+        // Eliminate
+        for (size_t k = 0; k < n; k++) {
+            if (k == i) continue;
+            double factor = aug[k][i];
+            if (factor == 0.0) continue;
+
+            for (size_t j = 0; j < 2 * n; j++)
+                aug[k][j] -= factor * aug[i][j];
+        }
+    }
+
+    // Copy back result
+    for (size_t i = 0; i < n; i++)
+        for (size_t j = 0; j < n; j++)
+            matrix[i][j] = aug[i][n + j];
+
+    free(aug);
+    free(block);
 }
 
 double **Get_BasicsMatrix(Model *model)
