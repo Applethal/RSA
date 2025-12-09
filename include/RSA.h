@@ -31,7 +31,7 @@ Model *ReadCsv(FILE *textfile);
 void FreeModel(Model *model);
 void InvertMatrix(double **matrix, size_t n);
 void RevisedSimplex(Model *model);
-double **Get_BasicsMatrix(Model *model);
+double **Get_BasisInverse(Model *model, int iteration);
 void PrintColumns(Model *model);
 double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multiplier_vector);
 double *Get_SimplexMultiplier(Model *model, double **B_inv);

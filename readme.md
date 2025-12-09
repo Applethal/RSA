@@ -14,7 +14,7 @@ TODO:
 5- <del> Add debug mode </del>.
 
 6- <del>Using Gauss' pivoting technique for matrix inversion is an effort of  $O(n^3)$, can I do better? </del> <del> Update: After learning a bit more on this topic, it would appear that using this algorithm is suitable for this application</del>. 
-Update 6/12/2025: Just learned that I don't need the entire B matrix. Using the LU factorization technique.
+<del>Update 6/12/2025: Just learned that I don't need the entire B matrix. Using the LU factorization technique. There is way too much to improve in this area. </del>
 
 # How to contribute 
 
