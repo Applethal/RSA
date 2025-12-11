@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
 
   Model *model = ReadCsv(file);
 
-
+  TransformModel(model);
   ValidateModelPointers(model); 
 
 
@@ -38,28 +38,13 @@ int main(int argc, char *argv[]) {
 
   if (Debug == 1) {
 
-    printf("Debug Mode: On\n");
-    printf("Objective function mode: %s\n", model->objective);
-    printf("Number of variables: %d\n", model->num_vars);
-    printf("Number of constraints: %d\n", model->num_constraints);
-    printf("Objective coefficients (Slack and Artificial coeffs included):");
-    printf("Big M: %.1f", model->BIG_M);
-    for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
-      printf(" %.1f", model->coeffs[i]);  
-    }
-    printf("\n\n");
-    PrintColumns(model);
-
+   
     RevisedSimplex_Debug(model);
     
   } else {
     RevisedSimplex(model); 
 
   } 
-
-
-
-
 
   printf("\n");
   printf("Objective function: %f \n", model->objective_function);

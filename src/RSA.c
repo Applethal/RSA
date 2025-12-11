@@ -67,19 +67,19 @@ void PrintHelp(){
 
 
 }
+
 Model *ReadCsv(FILE *csvfile)
 {
   Model *model = (Model *)malloc(sizeof(Model));
   char line[MAX_LINE_LENGTH];
 
-  // Line 1: Read objective type (MINIMIZE or MAXIMIZE)
+  // Line 1: Read objective type, num_vars, num_constraints
   if (!fgets(line, sizeof(line), csvfile))
   {
-    fprintf(stderr, "Error: Could not read objective type\n");
+    fprintf(stderr, "Error: Could not read header line\n");
     free(model);
     return NULL;
   }
-
 
   size_t len = strlen(line);
   if (len == sizeof(line) - 1 && line[len-1] != '\n') {
@@ -91,11 +91,53 @@ Model *ReadCsv(FILE *csvfile)
   // Remove newline
   line[strcspn(line, "\r\n")] = 0;
 
-  // Storing objective
-  model->objective = (char *)malloc(strlen(line) + 1);
-  strcpy(model->objective, line);
+  // Parse: OBJECTIVE,num_vars,num_constraints
+  char *token = strtok(line, ",");
+  if (!token) {
+    fprintf(stderr, "Error: Invalid header format\n");
+    free(model);
+    return NULL;
+  }
+  
+  model->objective = (char *)malloc(strlen(token) + 1);
+  strcpy(model->objective, token);
 
-  // Line 2: Read objective coefficients and count variables
+  token = strtok(NULL, ",");
+  if (!token) {
+    fprintf(stderr, "Error: Missing variables count in header\n");
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+  model->num_vars = atoi(token);
+
+  token = strtok(NULL, ",");
+  if (!token) {
+    fprintf(stderr, "Error: Missing constraints count in header\n");
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+  model->num_constraints = atoi(token);
+
+  // Validate limits
+  if (model->num_vars > MAX_VARS) {
+    fprintf(stderr, "Error: Too many variables (%zu). Maximum allowed: %d\n", 
+            model->num_vars, MAX_VARS);
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+
+  if (model->num_constraints > MAX_CONSTRAINTS) {
+    fprintf(stderr, "Error: Too many constraints (%zu). Maximum allowed: %d\n",
+            model->num_constraints, MAX_CONSTRAINTS);
+    free(model->objective);
+    free(model);
+    return NULL;
+  }
+
+  // Line 2: Read objective coefficients
   if (!fgets(line, sizeof(line), csvfile))
   {
     fprintf(stderr, "Error: Could not read objective coefficients\n");
@@ -104,109 +146,52 @@ Model *ReadCsv(FILE *csvfile)
     return NULL;
   }
 
-  // Count variables by counting commas + 1
-  model->num_vars = 1;
-  for (char *p = line; *p; p++)
-  {
-    if (*p == ',')
-      model->num_vars++;
-  }
-  if (model->num_vars > MAX_VARS) {
-    fprintf(stderr, "Error: Too many variables (%d). Maximum allowed: %d\n", 
-            model->num_vars, MAX_VARS);
-    free(model->objective);
-    free(model);
-    return NULL;
-  }
-
-
-  // Parse objective coefficients
-  double *objective_coeffs = (double *)malloc(model->num_vars * sizeof(double));
-  char *token = strtok(line, ",");
+  // Allocate and parse coefficients
+  model->coeffs = (double *)malloc(model->num_vars * sizeof(double));
+  token = strtok(line, ",");
   int idx = 0;
   while (token != NULL && idx < model->num_vars)
   {
-    objective_coeffs[idx++] = atof(token);
+    model->coeffs[idx++] = atof(token);
     token = strtok(NULL, ",");
   }
 
-  // First pass: count constraints and their types
-  long constraint_start = ftell(csvfile);
-  model->num_constraints = 0;
-  int num_le = 0, num_ge = 0, num_eq = 0;
-
-  while (fgets(line, sizeof(line), csvfile))
-  {
-    if (strstr(line, "<="))
-      num_le++;
-    else if (strstr(line, ">="))
-      num_ge++;
-    else if (strstr(line, "="))
-      num_eq++;
-    model->num_constraints++;
-
-
-    if (model->num_constraints > MAX_CONSTRAINTS) {
-      fprintf(stderr, "Error: Too many constraints (%d). Maximum allowed: %d\n",
-              model->num_constraints, MAX_CONSTRAINTS);
-      free(objective_coeffs);
-      free(model->objective);
-      free(model);
-      return NULL;
-    }
-  }
-
-  int num_slack_surplus = num_le + num_ge;
-  int num_artificial = num_eq + num_ge;
-  int total_cols = model->num_vars + num_slack_surplus + num_artificial;
-
-
-  size_t memory_needed = (size_t)model->num_constraints * total_cols * sizeof(double);
-  size_t max_memory = (size_t)MAX_MEM_BYTES * 1024 * 1024;
-
-  if (memory_needed > max_memory) {
-    fprintf(stderr, "Error: Model too large. Requires %zu MB, maximum is %d MB\n",
-            memory_needed / (1024 * 1024), MAX_MEM_BYTES);
-    free(objective_coeffs);
+  if (idx != model->num_vars) {
+    fprintf(stderr, "Error: Expected %zu variable coefficients but got %d\n", 
+            model->num_vars, idx);
+    free(model->coeffs);
     free(model->objective);
     free(model);
     return NULL;
   }
 
-  // Allocate model arrays
+  // Allocate arrays for raw constraint data
   model->columns = (double **)malloc(model->num_constraints * sizeof(double *));
   for (int i = 0; i < model->num_constraints; i++)
   {
-    model->columns[i] = (double *)malloc(total_cols * sizeof(double));
-    for (int j = 0; j < total_cols; j++)
-    {
-      model->columns[i][j] = 0.0;
-    }
+    model->columns[i] = (double *)malloc(model->num_vars * sizeof(double));
   }
 
   model->rhs_vector = (double *)malloc(model->num_constraints * sizeof(double));
   model->constraints_symbols = (char *)malloc(model->num_constraints * sizeof(char));
-  model->equalities_vector = (int *)malloc(num_artificial * sizeof(int));
-  model->basics_vector = (int *)calloc(model->num_constraints, sizeof(int));
-  model->coeffs = (double *)calloc(total_cols, sizeof(double));
 
-  model->inequalities_count = num_slack_surplus;
-  model->equalities_count = num_artificial;
-
-  // Second pass: read constraints
-  fseek(csvfile, constraint_start, SEEK_SET);
-
-  int slack_col = model->num_vars;
-  int artificial_col = model->num_vars + num_slack_surplus;
-  int slack_idx = 0;
-  int artificial_idx = 0;
-
+  // Read all constraints in one pass
   for (int i = 0; i < model->num_constraints; i++)
   {
     if (!fgets(line, sizeof(line), csvfile))
     {
-      fprintf(stderr, "Error: Unexpected end of file at constraint %d\n", i);
-      break;
+      fprintf(stderr, "Error: Unexpected end of file at constraint %d. This might indicate a missing constraint or wrong constraints count in the header\n", i);
+      // Cleanup on error
+      for (int j = 0; j <= i; j++) {
+        free(model->columns[j]);
+      }
+      free(model->columns);
+      free(model->rhs_vector);
+      free(model->constraints_symbols);
+      free(model->coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
     }
 
     // Parse constraint coefficients
@@ -221,11 +206,37 @@ Model *ReadCsv(FILE *csvfile)
       token = strtok(NULL, ",");
     }
 
+    if (col_idx != model->num_vars) {
+      fprintf(stderr, "Error: Constraint %d has %d coefficients, expected %zu variables\n", 
+              i, col_idx, model->num_vars);
+      // Cleanup
+      for (int j = 0; j < model->num_constraints; j++) {
+        free(model->columns[j]);
+      }
+      free(model->columns);
+      free(model->rhs_vector);
+      free(model->constraints_symbols);
+      free(model->coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
+    }
+
     // Read operator (<=, >=, =)
     if (token == NULL)
     {
-      fprintf(stderr, "Error: Missing operator or variable coefficient in constraint %d\n, make sure all the variables have exactly %i variables", i, model->num_vars);
-      exit(0);
+      fprintf(stderr, "Error: Missing operator in constraint %d\n", i);
+      // Cleanup
+      for (int j = 0; j < model->num_constraints; j++) {
+        free(model->columns[j]);
+      }
+      free(model->columns);
+      free(model->rhs_vector);
+      free(model->constraints_symbols);
+      free(model->coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
     }
 
     // Remove spaces from operator token
@@ -240,28 +251,165 @@ Model *ReadCsv(FILE *csvfile)
     }
     op[op_idx] = '\0';
 
+    // Store constraint type
+    if (strcmp(op, "<=") == 0)
+    {
+      model->constraints_symbols[i] = 'L';
+    }
+    else if (strcmp(op, ">=") == 0)
+    {
+      model->constraints_symbols[i] = 'G';
+    }
+    else if (strcmp(op, "=") == 0)
+    {
+      model->constraints_symbols[i] = 'E';
+    }
+    else
+    {
+      fprintf(stderr, "Error: Invalid operator '%s' in constraint %d\n", op, i);
+      // Cleanup
+      for (int j = 0; j < model->num_constraints; j++) {
+        free(model->columns[j]);
+      }
+      free(model->columns);
+      free(model->rhs_vector);
+      free(model->constraints_symbols);
+      free(model->coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
+    }
+
     // Read RHS
     token = strtok(NULL, ",");
     if (token == NULL)
     {
       fprintf(stderr, "Error: Missing RHS in constraint %d\n", i);
-      exit(0);
+      // Cleanup
+      for (int j = 0; j < model->num_constraints; j++) {
+        free(model->columns[j]);
+      }
+      free(model->columns);
+      free(model->rhs_vector);
+      free(model->constraints_symbols);
+      free(model->coeffs);
+      free(model->objective);
+      free(model);
+      return NULL;
     }
     model->rhs_vector[i] = atof(token);
+  }
 
-    // Process constraint type
-    if (strcmp(op, "<=") == 0)
+  model->equalities_vector = NULL;
+  model->basics_vector = NULL;
+  model->non_basics = NULL;
+  model->inequalities_count = 0;
+  model->equalities_count = 0;
+  model->non_basics_count = 0;
+  model->solver_iterations = 1;
+  model->objective_function = 0.0;
+  model->BIG_M = 0.0;
+
+  if (model->num_constraints > model->num_vars)
+  {
+    printf("Warning: More constraints than variables! The revised simplex algorithm works best when there are more variables than constraints!\n");
+  }
+
+  return model;
+}
+
+void TransformModel(Model *model)
+{
+  if (!model) {
+    fprintf(stderr, "Error: NULL model pointer\n");
+    exit(1);
+  }
+
+  // Count constraint types
+  int num_le = 0, num_ge = 0, num_eq = 0;
+  for (int i = 0; i < model->num_constraints; i++)
+  {
+    if (model->constraints_symbols[i] == 'L')
+      num_le++;
+    else if (model->constraints_symbols[i] == 'G')
+      num_ge++;
+    else if (model->constraints_symbols[i] == 'E')
+      num_eq++;
+  }
+
+  model->inequalities_count = num_le + num_ge;  // slack + surplus
+  model->equalities_count = num_eq + num_ge;    // artificial variables
+  int total_cols = model->num_vars + model->inequalities_count + model->equalities_count;
+
+  // Check memory requirements
+  size_t memory_needed = (size_t)model->num_constraints * total_cols * sizeof(double);
+  size_t max_memory = (size_t)MAX_MEM_BYTES * 1024 * 1024;
+
+  if (memory_needed > max_memory) {
+    fprintf(stderr, "Error: Model too large. Requires %zu MB, maximum is %d MB\n",
+            memory_needed / (1024 * 1024), MAX_MEM_BYTES);
+    exit(1);
+  }
+
+  // Store old columns and coeffs
+  double **old_columns = model->columns;
+  double *old_coeffs = model->coeffs;
+  size_t old_num_vars = model->num_vars;
+
+  // Allocate new expanded columns matrix
+  model->columns = (double **)malloc(model->num_constraints * sizeof(double *));
+  for (int i = 0; i < model->num_constraints; i++)
+  {
+    model->columns[i] = (double *)calloc(total_cols, sizeof(double));
+    
+    // Copy original constraint coefficients
+    for (int j = 0; j < old_num_vars; j++)
     {
-      model->constraints_symbols[i] = 'L';
+      model->columns[i][j] = old_columns[i][j];
+    }
+  }
+
+  // Allocate new expanded coefficients array
+  model->coeffs = (double *)calloc(total_cols, sizeof(double));
+  
+  // Copy original objective coefficients
+  for (int i = 0; i < old_num_vars; i++)
+  {
+    model->coeffs[i] = old_coeffs[i];
+  }
+
+  // Free old arrays
+  for (int i = 0; i < model->num_constraints; i++)
+  {
+    free(old_columns[i]);
+  }
+  free(old_columns);
+  free(old_coeffs);
+
+  // Allocate tracking arrays
+  model->equalities_vector = (int *)malloc(model->equalities_count * sizeof(int));
+  model->basics_vector = (int *)calloc(model->num_constraints, sizeof(int));
+
+  // Add slack, surplus, and artificial variables
+  int slack_col = model->num_vars;
+  int artificial_col = model->num_vars + model->inequalities_count;
+  int slack_idx = 0;
+  int artificial_idx = 0;
+
+  for (int i = 0; i < model->num_constraints; i++)
+  {
+    if (model->constraints_symbols[i] == 'L')
+    {
+      // Less-than: add slack variable
       int col = slack_col + slack_idx;
       model->columns[i][col] = 1.0;
       model->basics_vector[i] = col;
-      model->coeffs[col] = 0.0; // Slack variables have 0 coefficient
+      model->coeffs[col] = 0.0;
       slack_idx++;
     }
-    else if (strcmp(op, ">=") == 0)
+    else if (model->constraints_symbols[i] == 'G')
     {
-      model->constraints_symbols[i] = 'G';
+      // Greater-than: add surplus and artificial
       int surplus_col = slack_col + slack_idx;
       int artif_col = artificial_col + artificial_idx;
 
@@ -269,61 +417,47 @@ Model *ReadCsv(FILE *csvfile)
       model->columns[i][artif_col] = 1.0;
       model->equalities_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
-      // Big M will be set later
+      
       slack_idx++;
       artificial_idx++;
     }
-    else if (strcmp(op, "=") == 0)
+    else if (model->constraints_symbols[i] == 'E')
     {
-      model->constraints_symbols[i] = 'E';
+      // Equality: add artificial variable
       int artif_col = artificial_col + artificial_idx;
       model->columns[i][artif_col] = 1.0;
       model->equalities_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
-      // Big M will be set later
+      
       artificial_idx++;
     }
-    else
-  {
-      fprintf(stderr, "Error: Invalid operator '%s' in constraint %d\n", op, i);
-    }
   }
 
-  if (model->num_constraints > model->num_vars)
-  {
-    printf("Warning: More constraints than variables! The revised simplex algorithm works best when there are more variables than constraints!\n");
-  }
-
-  model->solver_iterations = 1;
-
+  // Calculate Big M based on largest objective coefficient
   double biggest_coeff = 0;
-
-
-  // Set objective coefficients
   for (int i = 0; i < model->num_vars; i++)
   {
-    if (biggest_coeff < objective_coeffs[i]){
-      biggest_coeff = objective_coeffs[i];
+    if (fabs(model->coeffs[i]) > biggest_coeff) {
+      biggest_coeff = fabs(model->coeffs[i]);
     }
-    model->coeffs[i] = objective_coeffs[i];
   }
-
-  // Applying Big M to artificial variables
-  int artificial_start = model->num_vars + model->inequalities_count;
   model->BIG_M = biggest_coeff * 2;
+
+  // Apply Big M penalties to artificial variables
+  int artificial_start = model->num_vars + model->inequalities_count;
   for (int i = 0; i < model->equalities_count; i++)
   {
     if (strcmp(model->objective, "MAXIMIZE") == 0)
     {
-      model->coeffs[artificial_start + i] = -model->BIG_M; // Penalty for MAX
+      model->coeffs[artificial_start + i] = -model->BIG_M;
     }
     else
-  {
-      model->coeffs[artificial_start + i] = model->BIG_M; // Penalty for MIN
+    {
+      model->coeffs[artificial_start + i] = model->BIG_M;
     }
   }
 
-  // Converting MINIMIZE to MAXIMIZE by negating ALL coefficients
+  // Convert MINIMIZE to MAXIMIZE by negating all coefficients
   if (strcmp(model->objective, "MINIMIZE") == 0)
   {
     for (int i = 0; i < total_cols; i++)
@@ -352,12 +486,9 @@ Model *ReadCsv(FILE *csvfile)
     }
   }
   model->non_basics_count = non_basic_idx;
-
-  model->objective_function = 0.0;
-
-  free(objective_coeffs);
-  return model;
 }
+
+
 
 void PrintColumns(Model *model)
 {
@@ -608,6 +739,21 @@ void RevisedSimplex(Model *model) {
 
 
 void RevisedSimplex_Debug(Model *model) {
+
+    printf("Debug Mode: On\n");
+    printf("Objective function mode: %s\n", model->objective);
+    printf("Number of variables: %d\n", model->num_vars);
+    printf("Number of constraints: %d\n", model->num_constraints);
+    printf("Objective coefficients (Slack and Artificial coeffs included):");
+    printf("Big M: %.1f", model->BIG_M);
+    for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
+      printf(" %.1f", model->coeffs[i]);  
+    }
+    printf("\n\n");
+    PrintColumns(model);
+
+
+
     int termination = 0;
     size_t n = model->num_constraints;
     printf("\n");

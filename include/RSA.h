@@ -27,18 +27,20 @@ typedef struct
   double BIG_M; // Big constant for the artificial variables, will equal max(coeffs) * 2
 } Model;
 
-Model *ReadCsv(FILE *textfile);
-void FreeModel(Model *model);
-void InvertMatrix(double **matrix, size_t n);
-void RevisedSimplex(Model *model);
-double **Get_BasisInverse(Model *model, int iteration);
-void PrintColumns(Model *model);
-double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multiplier_vector);
-double *Get_SimplexMultiplier(Model *model, double **B_inv);
-double *Get_pivot_column(double **B_inv, Model *model, int best_cost_idx);
-void UpdateRhs(Model *model, double *rhs_vector_copy, double **B);
-void Get_ObjectiveFunction(Model *model, double *rhs_vector);
-void RevisedSimplex_Debug(Model *model);
-void ValidateModelPointers(Model *model);
-void PrintHelp();
+Model *ReadCsv(FILE *textfile); // Reads CSV file and returns a Model
+void TransformModel(Model *model); // Transforms the model to the canonical form 
+void FreeModel(Model *model); // Free the model pointers
+void InvertMatrix(double **matrix, size_t n); // Inverts a matrix, used only to invert the basis starting from the second RSA iteration
+void RevisedSimplex(Model *model); // RSA Loop 
+double **Get_BasisInverse(Model *model, int iteration); // returns the B matrix
+void PrintColumns(Model *model); // Prints the constraints matrix columns 
+double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multiplier_vector); // returns the reduces prices 
+double *Get_SimplexMultiplier(Model *model, double **B_inv); // returns simplex multipliers for the exiting variables
+double *Get_pivot_column(double **B_inv, Model *model, int best_cost_idx); // Returns the pivot column
+void UpdateRhs(Model *model, double *rhs_vector_copy, double **B); // Updates the RHS vector at each RSA iteration 
+void Get_ObjectiveFunction(Model *model, double *rhs_vector); // returns the Objective function at the end, if the solving succeeds
+void RevisedSimplex_Debug(Model *model); // If the "-Debug" is used, the RSA loop will print the algorithm's output at each iteration
+void ValidateModelPointers(Model *model); // Makes sure that each model pointer is valid before executing the RSA loop
+void PrintHelp(); // If no arguments are provided, a mock-up man page will be printed and the program will exit
+
 #endif
