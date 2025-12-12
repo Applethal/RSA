@@ -32,7 +32,7 @@ Coeffs
 Constraints
 ```
 Where `OBJECTIVE` is the objective function's direction which takes either `MINIMIZE` and `MAXIMIZE` as keywords. `Variables count` and `Constraints count` describe the number of variables and constraints in the mathematical formulation respectively. Note: An error will be thrown if you give the wrong `Variables count`, but if you give a lower value $m$ for the `Constraints count` and include more constraints then only the first $m$ constraints will be considered . `Coeffs` refers to the objective function coefficients for the variables all in one line, the next lines will be strictly for the constraints where each constraint will have its left hand sign contain nothing but variable coefficients preceding the constraint's symbol `<=`, `=` or `>=`. Make sure each entry is separated with a `,`. 
-One last thing: Make sure the right-hand side is positive and that there is no empty line beneath the last constraint. Use 0s in the LHS of each constraints if a variable is irrelevant for the latter. This is because the program checks if each LHS has exactly $n$ number of variables, else the solver won't start.
+One last thing: Make sure <del>the right-hand side is positive and</del> that there is no empty line beneath the last constraint. Use 0s in the LHS of each constraints if a variable is irrelevant for the latter. This is because the program checks if each LHS has exactly $n$ number of variables, else the solver won't start.
 
 Example 1: 
 

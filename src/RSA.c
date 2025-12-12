@@ -641,6 +641,12 @@ void InvertMatrix(double **matrix, size_t n)
 }
 
 void RevisedSimplex(Model *model) {
+
+    TransformModel(model);
+
+    ValidateModelPointers(model); 
+
+
     int termination = 0;
     size_t n = model->num_constraints;
     int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1;
@@ -740,19 +746,27 @@ void RevisedSimplex(Model *model) {
 
 void RevisedSimplex_Debug(Model *model) {
 
+
+    TransformModel(model);
+
+    ValidateModelPointers(model); 
+
+
+
     printf("Debug Mode: On\n");
+    printf("Model after transformation:\n");
     printf("Objective function mode: %s\n", model->objective);
     printf("Number of variables: %d\n", model->num_vars);
     printf("Number of constraints: %d\n", model->num_constraints);
-    printf("Objective coefficients (Slack and Artificial coeffs included):");
+    printf("Objective coefficients:");
     printf("Big M: %.1f", model->BIG_M);
-    for (int i = 0; i < model->num_vars + model->equalities_count + model->inequalities_count; i++) {
+    for (int i = 0; i < model->num_vars; i++) {
       printf(" %.1f", model->coeffs[i]);  
     }
     printf("\n\n");
     PrintColumns(model);
-
-
+        
+     
 
     int termination = 0;
     size_t n = model->num_constraints;
@@ -1085,31 +1099,67 @@ void FreeModel(Model *model)
 
 void ValidateModelPointers(Model *model)
 {
-  if (!model)
-  {
-    fprintf(stderr, "Fatal Error: Model pointer is NULL.\n");
-    exit(0);
-  }
-
-  if (!model->columns ||
-    !model->objective ||
-    !model->coeffs ||
-    !model->rhs_vector ||
-    !model->basics_vector ||
-    !model->constraints_symbols ||
-    !model->equalities_vector ||
-    !model->non_basics)
-  {
-    fprintf(stderr, "Fatal Error: One or more model pointers are NULL.\n");
-    exit(0);
-  }
-
-  for (int i = 0; i < model->num_constraints; i++)
-  {
-    if (!model->columns[i])
+    if (!model)
     {
-      fprintf(stderr, "Fatal Error: columns[%d] is NULL.\n", i);
-      exit(0);
+        fprintf(stderr, "Fatal Error: Model pointer is NULL.\n");
+        exit(1);
     }
-  }
+
+    if (!model->columns)
+    {
+        fprintf(stderr, "Fatal Error: model->columns is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->objective)
+    {
+        fprintf(stderr, "Fatal Error: model->objective is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->coeffs)
+    {
+        fprintf(stderr, "Fatal Error: model->coeffs is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->rhs_vector)
+    {
+        fprintf(stderr, "Fatal Error: model->rhs_vector is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->basics_vector)
+    {
+        fprintf(stderr, "Fatal Error: model->basics_vector is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->constraints_symbols)
+    {
+        fprintf(stderr, "Fatal Error: model->constraints_symbols is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->equalities_vector)
+    {
+        fprintf(stderr, "Fatal Error: model->equalities_vector is NULL.\n");
+        exit(1);
+    }
+
+    if (!model->non_basics)
+    {
+        fprintf(stderr, "Fatal Error: model->non_basics is NULL.\n");
+        exit(1);
+    }
+
+    for (int i = 0; i < model->num_constraints; i++)
+    {
+        if (!model->columns[i])
+        {
+            fprintf(stderr, "Fatal Error: model->columns[%d] is NULL.\n", i);
+            exit(1);
+        }
+    }
 }
+

@@ -43,4 +43,12 @@ void RevisedSimplex_Debug(Model *model); // If the "-Debug" is used, the RSA loo
 void ValidateModelPointers(Model *model); // Makes sure that each model pointer is valid before executing the RSA loop
 void PrintHelp(); // If no arguments are provided, a mock-up man page will be printed and the program will exit
 
+
+
+
+
+
+
+
+
 #endif

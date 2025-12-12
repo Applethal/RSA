@@ -25,9 +25,7 @@ int main(int argc, char *argv[]) {
 
   Model *model = ReadCsv(file);
 
-  TransformModel(model);
-  ValidateModelPointers(model); 
-
+  
 
 
   printf("Starting solver, to enable iterative debugging add the flag '-Debug' as an argument after the file path. \n"); 
