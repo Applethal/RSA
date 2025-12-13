@@ -98,7 +98,7 @@ Model *ReadCsv(FILE *csvfile)
     free(model);
     return NULL;
   }
-  
+
   model->objective = (char *)malloc(strlen(token) + 1);
   strcpy(model->objective, token);
 
@@ -166,14 +166,15 @@ Model *ReadCsv(FILE *csvfile)
   }
 
   // Allocate arrays for raw constraint data
-  model->columns = (double **)malloc(model->num_constraints * sizeof(double *));
+  model->lhs_matrix = (double **)malloc(model->num_constraints * sizeof(double *));
   for (int i = 0; i < model->num_constraints; i++)
   {
-    model->columns[i] = (double *)malloc(model->num_vars * sizeof(double));
+    model->lhs_matrix[i] = (double *)malloc(model->num_vars * sizeof(double));
   }
 
   model->rhs_vector = (double *)malloc(model->num_constraints * sizeof(double));
   model->constraints_symbols = (char *)malloc(model->num_constraints * sizeof(char));
+  int num_le = 0, num_ge = 0, num_eq = 0;
 
   // Read all constraints in one pass
   for (int i = 0; i < model->num_constraints; i++)
@@ -183,9 +184,9 @@ Model *ReadCsv(FILE *csvfile)
       fprintf(stderr, "Error: Unexpected end of file at constraint %d. This might indicate a missing constraint or wrong constraints count in the header\n", i);
       // Cleanup on error
       for (int j = 0; j <= i; j++) {
-        free(model->columns[j]);
+        free(model->lhs_matrix[j]);
       }
-      free(model->columns);
+      free(model->lhs_matrix);
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
@@ -201,7 +202,7 @@ Model *ReadCsv(FILE *csvfile)
     // Read variable coefficients
     while (token != NULL && col_idx < model->num_vars)
     {
-      model->columns[i][col_idx] = atof(token);
+      model->lhs_matrix[i][col_idx] = atof(token);
       col_idx++;
       token = strtok(NULL, ",");
     }
@@ -211,9 +212,9 @@ Model *ReadCsv(FILE *csvfile)
               i, col_idx, model->num_vars);
       // Cleanup
       for (int j = 0; j < model->num_constraints; j++) {
-        free(model->columns[j]);
+        free(model->lhs_matrix[j]);
       }
-      free(model->columns);
+      free(model->lhs_matrix);
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
@@ -228,9 +229,9 @@ Model *ReadCsv(FILE *csvfile)
       fprintf(stderr, "Error: Missing operator in constraint %d\n", i);
       // Cleanup
       for (int j = 0; j < model->num_constraints; j++) {
-        free(model->columns[j]);
+        free(model->lhs_matrix[j]);
       }
-      free(model->columns);
+      free(model->lhs_matrix);
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
@@ -251,27 +252,35 @@ Model *ReadCsv(FILE *csvfile)
     }
     op[op_idx] = '\0';
 
-    // Store constraint type
+        // Store constraint type
     if (strcmp(op, "<=") == 0)
     {
       model->constraints_symbols[i] = 'L';
+      num_le++;
+
     }
     else if (strcmp(op, ">=") == 0)
     {
       model->constraints_symbols[i] = 'G';
+      num_ge++;
+
     }
     else if (strcmp(op, "=") == 0)
     {
       model->constraints_symbols[i] = 'E';
+      num_eq++;
+
     }
+    
+
     else
     {
       fprintf(stderr, "Error: Invalid operator '%s' in constraint %d\n", op, i);
       // Cleanup
       for (int j = 0; j < model->num_constraints; j++) {
-        free(model->columns[j]);
+        free(model->lhs_matrix[j]);
       }
-      free(model->columns);
+      free(model->lhs_matrix);
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
@@ -279,7 +288,7 @@ Model *ReadCsv(FILE *csvfile)
       free(model);
       return NULL;
     }
-
+     
     // Read RHS
     token = strtok(NULL, ",");
     if (token == NULL)
@@ -287,9 +296,9 @@ Model *ReadCsv(FILE *csvfile)
       fprintf(stderr, "Error: Missing RHS in constraint %d\n", i);
       // Cleanup
       for (int j = 0; j < model->num_constraints; j++) {
-        free(model->columns[j]);
+        free(model->lhs_matrix[j]);
       }
-      free(model->columns);
+      free(model->lhs_matrix);
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
@@ -300,15 +309,15 @@ Model *ReadCsv(FILE *csvfile)
     model->rhs_vector[i] = atof(token);
   }
 
-  model->equalities_vector = NULL;
+  model->artificials_vector = NULL;
   model->basics_vector = NULL;
   model->non_basics = NULL;
-  model->inequalities_count = 0;
-  model->equalities_count = 0;
   model->non_basics_count = 0;
   model->solver_iterations = 1;
   model->objective_function = 0.0;
   model->BIG_M = 0.0;
+  model->slacks_surplus_count = num_le + num_ge;  // slack + surplus
+  model->artificials_count = num_eq + num_ge;    // artificial variables
 
   if (model->num_constraints > model->num_vars)
   {
@@ -324,22 +333,7 @@ void TransformModel(Model *model)
     fprintf(stderr, "Error: NULL model pointer\n");
     exit(1);
   }
-
-  // Count constraint types
-  int num_le = 0, num_ge = 0, num_eq = 0;
-  for (int i = 0; i < model->num_constraints; i++)
-  {
-    if (model->constraints_symbols[i] == 'L')
-      num_le++;
-    else if (model->constraints_symbols[i] == 'G')
-      num_ge++;
-    else if (model->constraints_symbols[i] == 'E')
-      num_eq++;
-  }
-
-  model->inequalities_count = num_le + num_ge;  // slack + surplus
-  model->equalities_count = num_eq + num_ge;    // artificial variables
-  int total_cols = model->num_vars + model->inequalities_count + model->equalities_count;
+  int total_cols = model->num_vars + model->slacks_surplus_count + model->artificials_count;
 
   // Check memory requirements
   size_t memory_needed = (size_t)model->num_constraints * total_cols * sizeof(double);
@@ -351,27 +345,27 @@ void TransformModel(Model *model)
     exit(1);
   }
 
-  // Store old columns and coeffs
-  double **old_columns = model->columns;
+  // Store old lhs_matrix and coeffs
+  double **old_lhs_matrix = model->lhs_matrix;
   double *old_coeffs = model->coeffs;
   size_t old_num_vars = model->num_vars;
 
-  // Allocate new expanded columns matrix
-  model->columns = (double **)malloc(model->num_constraints * sizeof(double *));
+  // Allocate new expanded lhs_matrix matrix
+  model->lhs_matrix = (double **)malloc(model->num_constraints * sizeof(double *));
   for (int i = 0; i < model->num_constraints; i++)
   {
-    model->columns[i] = (double *)calloc(total_cols, sizeof(double));
-    
+    model->lhs_matrix[i] = (double *)calloc(total_cols, sizeof(double));
+
     // Copy original constraint coefficients
     for (int j = 0; j < old_num_vars; j++)
     {
-      model->columns[i][j] = old_columns[i][j];
+      model->lhs_matrix[i][j] = old_lhs_matrix[i][j];
     }
   }
 
   // Allocate new expanded coefficients array
   model->coeffs = (double *)calloc(total_cols, sizeof(double));
-  
+
   // Copy original objective coefficients
   for (int i = 0; i < old_num_vars; i++)
   {
@@ -381,18 +375,18 @@ void TransformModel(Model *model)
   // Free old arrays
   for (int i = 0; i < model->num_constraints; i++)
   {
-    free(old_columns[i]);
+    free(old_lhs_matrix[i]);
   }
-  free(old_columns);
+  free(old_lhs_matrix);
   free(old_coeffs);
 
   // Allocate tracking arrays
-  model->equalities_vector = (int *)malloc(model->equalities_count * sizeof(int));
+  model->artificials_vector = (int *)malloc(model->artificials_count * sizeof(int));
   model->basics_vector = (int *)calloc(model->num_constraints, sizeof(int));
 
   // Add slack, surplus, and artificial variables
   int slack_col = model->num_vars;
-  int artificial_col = model->num_vars + model->inequalities_count;
+  int artificial_col = model->num_vars + model->slacks_surplus_count;
   int slack_idx = 0;
   int artificial_idx = 0;
 
@@ -402,7 +396,7 @@ void TransformModel(Model *model)
     {
       // Less-than: add slack variable
       int col = slack_col + slack_idx;
-      model->columns[i][col] = 1.0;
+      model->lhs_matrix[i][col] = 1.0;
       model->basics_vector[i] = col;
       model->coeffs[col] = 0.0;
       slack_idx++;
@@ -413,11 +407,11 @@ void TransformModel(Model *model)
       int surplus_col = slack_col + slack_idx;
       int artif_col = artificial_col + artificial_idx;
 
-      model->columns[i][surplus_col] = -1.0;
-      model->columns[i][artif_col] = 1.0;
-      model->equalities_vector[artificial_idx] = artif_col;
+      model->lhs_matrix[i][surplus_col] = -1.0;
+      model->lhs_matrix[i][artif_col] = 1.0;
+      model->artificials_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
-      
+
       slack_idx++;
       artificial_idx++;
     }
@@ -425,10 +419,10 @@ void TransformModel(Model *model)
     {
       // Equality: add artificial variable
       int artif_col = artificial_col + artificial_idx;
-      model->columns[i][artif_col] = 1.0;
-      model->equalities_vector[artificial_idx] = artif_col;
+      model->lhs_matrix[i][artif_col] = 1.0;
+      model->artificials_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
-      
+
       artificial_idx++;
     }
   }
@@ -444,15 +438,15 @@ void TransformModel(Model *model)
   model->BIG_M = biggest_coeff * 2;
 
   // Apply Big M penalties to artificial variables
-  int artificial_start = model->num_vars + model->inequalities_count;
-  for (int i = 0; i < model->equalities_count; i++)
+  int artificial_start = model->num_vars + model->slacks_surplus_count;
+  for (int i = 0; i < model->artificials_count; i++)
   {
     if (strcmp(model->objective, "MAXIMIZE") == 0)
     {
       model->coeffs[artificial_start + i] = -model->BIG_M;
     }
     else
-    {
+  {
       model->coeffs[artificial_start + i] = model->BIG_M;
     }
   }
@@ -490,9 +484,9 @@ void TransformModel(Model *model)
 
 
 
-void PrintColumns(Model *model)
+void Printlhs_matrix(Model *model)
 {
-  int total_cols = model->num_vars + model->inequalities_count + model->equalities_count;
+  int total_cols = model->num_vars + model->slacks_surplus_count + model->artificials_count;
 
   printf("Constraints in canonical form:\n");
   for (int i = 0; i < model->num_constraints; i++)
@@ -500,7 +494,7 @@ void PrintColumns(Model *model)
     printf("Constraint %d: ", i + 1);
     for (int j = 0; j < total_cols; j++)
     {
-      printf("%5.1f ", model->columns[i][j]);
+      printf("%5.1f ", model->lhs_matrix[i][j]);
     }
     printf("| RHS: %5.1f", model->rhs_vector[i]);
     printf("\n");
@@ -517,425 +511,425 @@ void PrintColumns(Model *model)
 }
 
 double **Get_BasisInverse(Model *model, int iteration) {
-    size_t n = model->num_constraints;
-    double **B_inv = (double **)malloc(n * sizeof(double *));
-    
-    for (size_t i = 0; i < n; i++) {
-        B_inv[i] = (double *)malloc(n * sizeof(double));
-    }
-    
-    if (iteration == 1) {
+  size_t n = model->num_constraints;
+  double **B_inv = (double **)malloc(n * sizeof(double *));
 
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = 0; j < n; j++) {
-                B_inv[i][j] = (i == j) ? 1.0 : 0.0;
-            }
-        }
-    } else {
-        // Build B then invert it
-        double **B = (double **)malloc(n * sizeof(double *));
-        for (size_t i = 0; i < n; i++) {
-            B[i] = (double *)malloc(n * sizeof(double));
-            for (size_t j = 0; j < n; j++) {
-                int basis_col = model->basics_vector[j];
-                B[i][j] = model->columns[i][basis_col];
-            }
-        }
-        
-        // Copy B to B_inv for in-place inversion
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = 0; j < n; j++) {
-                B_inv[i][j] = B[i][j];
-            }
-        }
-        
-        // Free B immediately
-        for (size_t i = 0; i < n; i++) {
-            free(B[i]);
-        }
-        free(B);
-        
-        InvertMatrix(B_inv, n);
+  for (size_t i = 0; i < n; i++) {
+    B_inv[i] = (double *)malloc(n * sizeof(double));
+  }
+
+  if (iteration == 1) {
+
+    for (size_t i = 0; i < n; i++) {
+      for (size_t j = 0; j < n; j++) {
+        B_inv[i][j] = (i == j) ? 1.0 : 0.0;
+      }
     }
-    
-    return B_inv;
+  } else {
+    // Build B then invert it
+    double **B = (double **)malloc(n * sizeof(double *));
+    for (size_t i = 0; i < n; i++) {
+      B[i] = (double *)malloc(n * sizeof(double));
+      for (size_t j = 0; j < n; j++) {
+        int basis_col = model->basics_vector[j];
+        B[i][j] = model->lhs_matrix[i][basis_col];
+      }
+    }
+
+    // Copy B to B_inv for in-place inversion
+    for (size_t i = 0; i < n; i++) {
+      for (size_t j = 0; j < n; j++) {
+        B_inv[i][j] = B[i][j];
+      }
+    }
+
+    // Free B immediately
+    for (size_t i = 0; i < n; i++) {
+      free(B[i]);
+    }
+    free(B);
+
+    InvertMatrix(B_inv, n);
+  }
+
+  return B_inv;
 }
 
 void InvertMatrix(double **matrix, size_t n)
 {
-    const double EPS = 1e-12;
+  const double EPS = 1e-12;
 
-    // Single block allocation for the augmented matrix
-    double *block = malloc(n * (2 * n) * sizeof(double));
-    double **aug = malloc(n * sizeof(double *));
-    if (!block || !aug) {
-        printf("ERROR: Out of memory\n");
-        exit(1);
+  // Single block allocation for the augmented matrix
+  double *block = malloc(n * (2 * n) * sizeof(double));
+  double **aug = malloc(n * sizeof(double *));
+  if (!block || !aug) {
+    printf("ERROR: Out of memory\n");
+    exit(1);
+  }
+
+  for (size_t i = 0; i < n; i++)
+    aug[i] = block + i * (2 * n);
+
+  // Build augmented matrix
+  for (size_t i = 0; i < n; i++) {
+    for (size_t j = 0; j < n; j++)
+      aug[i][j] = matrix[i][j];
+    for (size_t j = n; j < 2 * n; j++)
+      aug[i][j] = (j - n == i);
+  }
+
+  // Gauss-Jordan elimination with partial pivoting
+  for (size_t i = 0; i < n; i++) {
+
+    // Find pivot
+    size_t max_row = i;
+    double max_val = fabs(aug[i][i]);
+
+    for (size_t k = i + 1; k < n; k++) {
+      double v = fabs(aug[k][i]);
+      if (v > max_val) {
+        max_val = v;
+        max_row = k;
+      }
     }
 
-    for (size_t i = 0; i < n; i++)
-        aug[i] = block + i * (2 * n);
-
-    // Build augmented matrix
-    for (size_t i = 0; i < n; i++) {
-        for (size_t j = 0; j < n; j++)
-            aug[i][j] = matrix[i][j];
-        for (size_t j = n; j < 2 * n; j++)
-            aug[i][j] = (j - n == i);
+    // Swap
+    if (max_row != i) {
+      double *tmp = aug[i];
+      aug[i] = aug[max_row];
+      aug[max_row] = tmp;
     }
 
-    // Gauss-Jordan elimination with partial pivoting
-    for (size_t i = 0; i < n; i++) {
-
-        // Find pivot
-        size_t max_row = i;
-        double max_val = fabs(aug[i][i]);
-
-        for (size_t k = i + 1; k < n; k++) {
-            double v = fabs(aug[k][i]);
-            if (v > max_val) {
-                max_val = v;
-                max_row = k;
-            }
-        }
-
-        // Swap
-        if (max_row != i) {
-            double *tmp = aug[i];
-            aug[i] = aug[max_row];
-            aug[max_row] = tmp;
-        }
-
-        // Check singularity
-        double pivot = aug[i][i];
-        if (fabs(pivot) < EPS) {
-            printf("ERROR: Singular matrix - basis is not invertible!\n");
-            free(aug);
-            free(block);
-            exit(1);
-        }
-
-        // Normalize pivot row
-        double inv_pivot = 1.0 / pivot;
-        for (size_t j = 0; j < 2 * n; j++)
-            aug[i][j] *= inv_pivot;
-
-        // Eliminate
-        for (size_t k = 0; k < n; k++) {
-            if (k == i) continue;
-            double factor = aug[k][i];
-            if (factor == 0.0) continue;
-
-            for (size_t j = 0; j < 2 * n; j++)
-                aug[k][j] -= factor * aug[i][j];
-        }
+    // Check singularity
+    double pivot = aug[i][i];
+    if (fabs(pivot) < EPS) {
+      printf("ERROR: Singular matrix - basis is not invertible!\n");
+      free(aug);
+      free(block);
+      exit(1);
     }
 
-    // Copy back result
-    for (size_t i = 0; i < n; i++)
-        for (size_t j = 0; j < n; j++)
-            matrix[i][j] = aug[i][n + j];
+    // Normalize pivot row
+    double inv_pivot = 1.0 / pivot;
+    for (size_t j = 0; j < 2 * n; j++)
+      aug[i][j] *= inv_pivot;
 
-    free(aug);
-    free(block);
+    // Eliminate
+    for (size_t k = 0; k < n; k++) {
+      if (k == i) continue;
+      double factor = aug[k][i];
+      if (factor == 0.0) continue;
+
+      for (size_t j = 0; j < 2 * n; j++)
+        aug[k][j] -= factor * aug[i][j];
+    }
+  }
+
+  // Copy back result
+  for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++)
+      matrix[i][j] = aug[i][n + j];
+
+  free(aug);
+  free(block);
 }
 
 void RevisedSimplex(Model *model) {
 
-    TransformModel(model);
+  TransformModel(model);
 
-    ValidateModelPointers(model); 
+  ValidateModelPointers(model); 
 
 
-    int termination = 0;
-    size_t n = model->num_constraints;
-    int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1;
+  int termination = 0;
+  size_t n = model->num_constraints;
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1;
 
-    while (termination != 1) {
-        if (model->solver_iterations == MAX_ITERATIONS) {
-            printf("Max iterations reached. Terminating!\n");
-            FreeModel(model);
-            exit(0);
-        }
-
-        int feasibility_check = 0;
-        printf("Beginning solver iteration %i ... \n", model->solver_iterations);
-
-        
-        double **B_inv = Get_BasisInverse(model, model->solver_iterations);
-        
-        double original_RHS[n];
-        for (size_t i = 0; i < n; i++) {
-            original_RHS[i] = model->rhs_vector[i];
-        }
-
-        double *Simplex_multiplier = Get_SimplexMultiplier(model, B_inv);
-
-        int entering_var_idx = 0;
-        int entering_var = 0;
-        UpdateRhs(model, original_RHS, B_inv);
-
-        double best_reduced_cost = -DBL_MAX;
-
-        // Getting the entering variable
-        for (size_t i = 0; i < model->non_basics_count; i++) {
-            int non_basic_idx = model->non_basics[i];
-            double reduced_cost = Get_ReducedPrice(model, B_inv, non_basic_idx, Simplex_multiplier);
-
-            if (reduced_cost > best_reduced_cost) {
-                best_reduced_cost = reduced_cost;
-                entering_var_idx = i;
-                entering_var = non_basic_idx;
-            }
-            if (reduced_cost <= 0) {
-                feasibility_check++;
-            }
-        }
-
-        // If all reduced costs are <= 0, optimal solution found
-        if (feasibility_check == model->non_basics_count) {
-            printf("Solver loop terminated!\n");
-            termination++;
-            Get_ObjectiveFunction(model, original_RHS);
-            
-            for (size_t i = 0; i < n; i++) {
-                free(B_inv[i]);
-            }
-            free(B_inv);
-            free(Simplex_multiplier);
-            break;
-        }
-
-        double *Pivot = Get_pivot_column(B_inv, model, entering_var);
-
-        // Getting the exiting variable
-        int exiting_var_idx = -1;
-        int exiting_var = -1;
-        double best_ratio = DBL_MAX;
-
-        for (size_t i = 0; i < n; i++) {
-            if (Pivot[i] <= 1e-6) {
-                continue;
-            }
-            double ratio = original_RHS[i] / Pivot[i];
-            if (ratio < best_ratio && ratio >= 0) {
-                best_ratio = ratio;
-                exiting_var_idx = i;
-                exiting_var = model->basics_vector[i];
-            }
-        }
-
-        if (exiting_var_idx == -1) {
-            printf("LP is unbounded! Terminating!\n");
-            exit(0);
-        }
-
-        model->non_basics[entering_var_idx] = exiting_var;
-        model->basics_vector[exiting_var_idx] = entering_var;
-        model->solver_iterations++;
-
-        free(Pivot);
-        for (size_t i = 0; i < n; i++) {
-            free(B_inv[i]);
-        }
-        free(B_inv);
-        free(Simplex_multiplier);
+  while (termination != 1) {
+    if (model->solver_iterations == MAX_ITERATIONS) {
+      printf("Max iterations reached. Terminating!\n");
+      FreeModel(model);
+      exit(0);
     }
+
+    int feasibility_check = 0;
+    printf("Beginning solver iteration %i ... \n", model->solver_iterations);
+
+
+    double **B_inv = Get_BasisInverse(model, model->solver_iterations);
+
+    double original_RHS[n];
+    for (size_t i = 0; i < n; i++) {
+      original_RHS[i] = model->rhs_vector[i];
+    }
+
+    double *Simplex_multiplier = Get_SimplexMultiplier(model, B_inv);
+
+    int entering_var_idx = 0;
+    int entering_var = 0;
+    UpdateRhs(model, original_RHS, B_inv);
+
+    double best_reduced_cost = -DBL_MAX;
+
+    // Getting the entering variable
+    for (size_t i = 0; i < model->non_basics_count; i++) {
+      int non_basic_idx = model->non_basics[i];
+      double reduced_cost = Get_ReducedPrice(model, B_inv, non_basic_idx, Simplex_multiplier);
+
+      if (reduced_cost > best_reduced_cost) {
+        best_reduced_cost = reduced_cost;
+        entering_var_idx = i;
+        entering_var = non_basic_idx;
+      }
+      if (reduced_cost <= 0) {
+        feasibility_check++;
+      }
+    }
+
+    // If all reduced costs are <= 0, optimal solution found
+    if (feasibility_check == model->non_basics_count) {
+      printf("Solver loop terminated!\n");
+      termination++;
+      Get_ObjectiveFunction(model, original_RHS);
+
+      for (size_t i = 0; i < n; i++) {
+        free(B_inv[i]);
+      }
+      free(B_inv);
+      free(Simplex_multiplier);
+      break;
+    }
+
+    double *Pivot = Get_pivot_column(B_inv, model, entering_var);
+
+    // Getting the exiting variable
+    int exiting_var_idx = -1;
+    int exiting_var = -1;
+    double best_ratio = DBL_MAX;
+
+    for (size_t i = 0; i < n; i++) {
+      if (Pivot[i] <= 1e-6) {
+        continue;
+      }
+      double ratio = original_RHS[i] / Pivot[i];
+      if (ratio < best_ratio && ratio >= 0) {
+        best_ratio = ratio;
+        exiting_var_idx = i;
+        exiting_var = model->basics_vector[i];
+      }
+    }
+
+    if (exiting_var_idx == -1) {
+      printf("LP is unbounded! Terminating!\n");
+      exit(0);
+    }
+
+    model->non_basics[entering_var_idx] = exiting_var;
+    model->basics_vector[exiting_var_idx] = entering_var;
+    model->solver_iterations++;
+
+    free(Pivot);
+    for (size_t i = 0; i < n; i++) {
+      free(B_inv[i]);
+    }
+    free(B_inv);
+    free(Simplex_multiplier);
+  }
 }
 
 
 void RevisedSimplex_Debug(Model *model) {
 
 
-    TransformModel(model);
+  TransformModel(model);
 
-    ValidateModelPointers(model); 
+  ValidateModelPointers(model); 
 
 
 
-    printf("Debug Mode: On\n");
-    printf("Model after transformation:\n");
-    printf("Objective function mode: %s\n", model->objective);
-    printf("Number of variables: %d\n", model->num_vars);
-    printf("Number of constraints: %d\n", model->num_constraints);
-    printf("Objective coefficients:");
-    printf("Big M: %.1f", model->BIG_M);
-    for (int i = 0; i < model->num_vars; i++) {
-      printf(" %.1f", model->coeffs[i]);  
+  printf("Debug Mode: On\n");
+  printf("Model after transformation:\n");
+  printf("Objective function mode: %s\n", model->objective);
+  printf("Number of variables: %d\n", model->num_vars);
+  printf("Number of constraints: %d\n", model->num_constraints);
+  printf("Objective coefficients:");
+  printf("Big M: %.1f", model->BIG_M);
+  for (int i = 0; i < model->num_vars; i++) {
+    printf(" %.1f", model->coeffs[i]);  
+  }
+  printf("\n\n");
+  Printlhs_matrix(model);
+
+
+
+  int termination = 0;
+  size_t n = model->num_constraints;
+  printf("\n");
+  printf("===================================================================\n");
+
+  printf("Initial Non basic variable indices:\n");
+  for (size_t i = 0; i < model->non_basics_count; i++) {
+    printf(" %i ", model->non_basics[i]);
+  }
+  printf("\n");
+  printf("Initial Basic variable indices:\n");
+
+  for (size_t i = 0; i < model->num_constraints; i++) {
+    printf(" %i ", model->basics_vector[i]);
+  }
+  printf("\n");
+  printf("===================================================================\n");
+  int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1;
+
+  while (termination != 1) {
+    int feasibility_check = 0;
+    if (model->solver_iterations == MAX_ITERATIONS) {
+      printf("Max iterations reached. Terminating!\n");
+      FreeModel(model);
+      exit(0);
     }
-    printf("\n\n");
-    PrintColumns(model);
-        
-     
 
-    int termination = 0;
-    size_t n = model->num_constraints;
+    printf("Beginning solver iteration %i ... \n", model->solver_iterations);
+
+    if (model->solver_iterations == 1) {
+      printf("Solver iteration 1, B^-1 is identity matrix\n");
+    } else {
+      printf("Getting B^-1 matrix:\n");
+    }
+
+    double **B_inv = Get_BasisInverse(model, model->solver_iterations);
+
+    printf("===================================================================\n");
+    for (size_t i = 0; i < n; i++) {
+      for (size_t j = 0; j < n; j++) {
+        printf(" %f ", B_inv[i][j]);
+      }
+      printf("\n");
+    }
     printf("\n");
     printf("===================================================================\n");
 
-    printf("Initial Non basic variable indices:\n");
+    double original_RHS[n];
+    for (size_t i = 0; i < n; i++) {
+      original_RHS[i] = model->rhs_vector[i];
+    }
+
+    printf("Getting the simplex multiplier P vector:\n");
+    double *Simplex_multiplier = Get_SimplexMultiplier(model, B_inv);
+    printf("P vector elements:\n");
+
+    for (size_t i = 0; i < n; i++) {
+      printf(" %f ", Simplex_multiplier[i]);
+    }
+    printf("\n");
+    printf("===================================================================\n");
+
+    int entering_var_idx = 0;
+    int entering_var = 0;
+    UpdateRhs(model, original_RHS, B_inv);
+
+    printf("Updating the Right hand side vector\n");
+    for (size_t i = 0; i < n; i++) {
+      printf(" %f ", model->rhs_vector[i]);
+    }
+    printf("\n");
+
+    double best_reduced_cost = -DBL_MAX;
+    printf("MAXIMIZATION problem (after conversion), choosing the highest reduced cost value\n");
+    printf("===================================================================\n");
+    printf("Getting the entering variable:\n");
+    printf("===================================================================\n");
+
     for (size_t i = 0; i < model->non_basics_count; i++) {
-        printf(" %i ", model->non_basics[i]);
-    }
-    printf("\n");
-    printf("Initial Basic variable indices:\n");
+      int non_basic_idx = model->non_basics[i];
+      double reduced_cost = Get_ReducedPrice(model, B_inv, non_basic_idx, Simplex_multiplier);
+      printf("The reduced cost of non basic variable %i is %f \n", non_basic_idx, reduced_cost);
 
-    for (size_t i = 0; i < model->num_constraints; i++) {
-        printf(" %i ", model->basics_vector[i]);
+      if (reduced_cost > best_reduced_cost) {
+        best_reduced_cost = reduced_cost;
+        entering_var_idx = i;
+        entering_var = non_basic_idx;
+      }
+      if (reduced_cost <= 0) {
+        feasibility_check++;
+      }
     }
-    printf("\n");
+
+    printf("Entering variable index: %i, cost: %f \n", entering_var, best_reduced_cost);
     printf("===================================================================\n");
-    int MAX_ITERATIONS = (model->num_vars * model->num_constraints) + 1;
 
-    while (termination != 1) {
-        int feasibility_check = 0;
-        if (model->solver_iterations == MAX_ITERATIONS) {
-            printf("Max iterations reached. Terminating!\n");
-            FreeModel(model);
-            exit(0);
-        }
+    if (feasibility_check == model->non_basics_count) {
+      printf("Solver loop terminated!\n");
+      termination++;
+      Get_ObjectiveFunction(model, original_RHS);
 
-        printf("Beginning solver iteration %i ... \n", model->solver_iterations);
-        
-        if (model->solver_iterations == 1) {
-            printf("Solver iteration 1, B^-1 is identity matrix\n");
-        } else {
-            printf("Getting B^-1 matrix:\n");
-        }
-        
-        double **B_inv = Get_BasisInverse(model, model->solver_iterations);
-        
-        printf("===================================================================\n");
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = 0; j < n; j++) {
-                printf(" %f ", B_inv[i][j]);
-            }
-            printf("\n");
-        }
-        printf("\n");
-        printf("===================================================================\n");
-
-        double original_RHS[n];
-        for (size_t i = 0; i < n; i++) {
-            original_RHS[i] = model->rhs_vector[i];
-        }
-
-        printf("Getting the simplex multiplier P vector:\n");
-        double *Simplex_multiplier = Get_SimplexMultiplier(model, B_inv);
-        printf("P vector elements:\n");
-
-        for (size_t i = 0; i < n; i++) {
-            printf(" %f ", Simplex_multiplier[i]);
-        }
-        printf("\n");
-        printf("===================================================================\n");
-
-        int entering_var_idx = 0;
-        int entering_var = 0;
-        UpdateRhs(model, original_RHS, B_inv);
-
-        printf("Updating the Right hand side vector\n");
-        for (size_t i = 0; i < n; i++) {
-            printf(" %f ", model->rhs_vector[i]);
-        }
-        printf("\n");
-
-        double best_reduced_cost = -DBL_MAX;
-        printf("MAXIMIZATION problem (after conversion), choosing the highest reduced cost value\n");
-        printf("===================================================================\n");
-        printf("Getting the entering variable:\n");
-        printf("===================================================================\n");
-
-        for (size_t i = 0; i < model->non_basics_count; i++) {
-            int non_basic_idx = model->non_basics[i];
-            double reduced_cost = Get_ReducedPrice(model, B_inv, non_basic_idx, Simplex_multiplier);
-            printf("The reduced cost of non basic variable %i is %f \n", non_basic_idx, reduced_cost);
-
-            if (reduced_cost > best_reduced_cost) {
-                best_reduced_cost = reduced_cost;
-                entering_var_idx = i;
-                entering_var = non_basic_idx;
-            }
-            if (reduced_cost <= 0) {
-                feasibility_check++;
-            }
-        }
-
-        printf("Entering variable index: %i, cost: %f \n", entering_var, best_reduced_cost);
-        printf("===================================================================\n");
-
-        if (feasibility_check == model->non_basics_count) {
-            printf("Solver loop terminated!\n");
-            termination++;
-            Get_ObjectiveFunction(model, original_RHS);
-            
-            for (size_t i = 0; i < n; i++) {
-                free(B_inv[i]);
-            }
-            free(B_inv);
-            free(Simplex_multiplier);
-            break;
-        }
-
-        double *Pivot = Get_pivot_column(B_inv, model, entering_var);
-        printf("Getting the exiting variable:\n");
-        printf("===================================================================\n");
-
-        int exiting_var_idx = -1;
-        int exiting_var = -1;
-        double best_ratio = DBL_MAX;
-
-        for (size_t i = 0; i < n; i++) {
-            if (Pivot[i] <= 1e-6) {
-                continue;
-            }
-            double ratio = original_RHS[i] / Pivot[i];
-            printf("Ratio of variable %i is %f which has a pivot value of %f \n", 
-                   model->basics_vector[i], ratio, Pivot[i]);
-            if (ratio < best_ratio && ratio >= 0) {
-                best_ratio = ratio;
-                exiting_var_idx = i;
-                exiting_var = model->basics_vector[i];
-            }
-        }
-
-        if (exiting_var_idx == -1) {
-            printf("No exiting variable found, LP is unbounded! Terminating!\n");
-            exit(0);
-        }
-
-        printf("The exiting variable is %i with ratio of %f \n", exiting_var, best_ratio);
-        printf("===================================================================\n");
-
-        model->non_basics[entering_var_idx] = exiting_var;
-        model->basics_vector[exiting_var_idx] = entering_var;
-
-        printf("Entering variable:%i at position %i \n", entering_var, entering_var_idx);
-        printf("Exiting variable:%i at position: %i \n", exiting_var, exiting_var_idx);
-        printf("Non basics updated:\n");
-        for (size_t i = 0; i < model->non_basics_count; i++) {
-            printf(" %i ", model->non_basics[i]);
-        }
-        printf("\n");
-        printf("Basics vector:\n");
-        for (size_t i = 0; i < model->num_constraints; i++) {
-            printf(" %i ", model->basics_vector[i]);
-        }
-
-        model->solver_iterations++;
-        free(Pivot);
-        for (size_t i = 0; i < n; i++) {
-            free(B_inv[i]);
-        }
-        free(B_inv);
-        free(Simplex_multiplier);
-
-        printf("\n");
-        printf("Iteration %i ends here, press any key to continue!\n", 
-               model->solver_iterations - 1);
-        printf("===================================================================\n");
-        getchar();
+      for (size_t i = 0; i < n; i++) {
+        free(B_inv[i]);
+      }
+      free(B_inv);
+      free(Simplex_multiplier);
+      break;
     }
+
+    double *Pivot = Get_pivot_column(B_inv, model, entering_var);
+    printf("Getting the exiting variable:\n");
+    printf("===================================================================\n");
+
+    int exiting_var_idx = -1;
+    int exiting_var = -1;
+    double best_ratio = DBL_MAX;
+
+    for (size_t i = 0; i < n; i++) {
+      if (Pivot[i] <= 1e-6) {
+        continue;
+      }
+      double ratio = original_RHS[i] / Pivot[i];
+      printf("Ratio of variable %i is %f which has a pivot value of %f \n", 
+             model->basics_vector[i], ratio, Pivot[i]);
+      if (ratio < best_ratio && ratio >= 0) {
+        best_ratio = ratio;
+        exiting_var_idx = i;
+        exiting_var = model->basics_vector[i];
+      }
+    }
+
+    if (exiting_var_idx == -1) {
+      printf("No exiting variable found, LP is unbounded! Terminating!\n");
+      exit(0);
+    }
+
+    printf("The exiting variable is %i with ratio of %f \n", exiting_var, best_ratio);
+    printf("===================================================================\n");
+
+    model->non_basics[entering_var_idx] = exiting_var;
+    model->basics_vector[exiting_var_idx] = entering_var;
+
+    printf("Entering variable:%i at position %i \n", entering_var, entering_var_idx);
+    printf("Exiting variable:%i at position: %i \n", exiting_var, exiting_var_idx);
+    printf("Non basics updated:\n");
+    for (size_t i = 0; i < model->non_basics_count; i++) {
+      printf(" %i ", model->non_basics[i]);
+    }
+    printf("\n");
+    printf("Basics vector:\n");
+    for (size_t i = 0; i < model->num_constraints; i++) {
+      printf(" %i ", model->basics_vector[i]);
+    }
+
+    model->solver_iterations++;
+    free(Pivot);
+    for (size_t i = 0; i < n; i++) {
+      free(B_inv[i]);
+    }
+    free(B_inv);
+    free(Simplex_multiplier);
+
+    printf("\n");
+    printf("Iteration %i ends here, press any key to continue!\n", 
+           model->solver_iterations - 1);
+    printf("===================================================================\n");
+    getchar();
+  }
 }
 
 double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multiplier_vector)
@@ -945,7 +939,7 @@ double Get_ReducedPrice(Model *model, double **B_inv, int var_col, double *multi
 
   for (int i = 0; i < n; i++)
   {
-    dot_product += multiplier_vector[i] * model->columns[i][var_col];
+    dot_product += multiplier_vector[i] * model->lhs_matrix[i][var_col];
   }
 
   double reduced_cost = model->coeffs[var_col] - dot_product;
@@ -981,7 +975,7 @@ double *Get_pivot_column(double **B_inv, Model *model, int best_cost_idx)
     double sum = 0.0;
     for (int j = 0; j < n; j++)
     {
-      sum += B_inv[i][j] * model->columns[j][best_cost_idx];
+      sum += B_inv[i][j] * model->lhs_matrix[j][best_cost_idx];
     }
     Pivot[i] = sum;
   }
@@ -1064,11 +1058,11 @@ void FreeModel(Model *model)
   size += sizeof(int) * model->num_constraints * 2;
   size += sizeof(int) * model->num_vars;
 
-  int total_cols = model->num_vars + model->inequalities_count + model->equalities_count;
+  int total_cols = model->num_vars + model->slacks_surplus_count + model->artificials_count;
 
   for (int i = 0; i < model->num_constraints; i++)
   {
-    free(model->columns[i]);
+    free(model->lhs_matrix[i]);
     size += sizeof(double) * total_cols;
   }
 
@@ -1078,88 +1072,97 @@ void FreeModel(Model *model)
   size += sizeof(double);                          // Objective function
   size += sizeof(char) * model->num_constraints;   // Constraints symbols
   size += sizeof(int) * 2;                         // Inequalities and equalities count
-  size += sizeof(int) * model->equalities_count;   // Equalities vector
+  size += sizeof(int) * model->artificials_count;   // Equalities vector
   size += sizeof(int);                             // Solver iterations
   size += sizeof(int) * model->non_basics_count;
   size += sizeof(double); // Big-M definition
 
-  free(model->columns);
+  size_t n = model->num_constraints;
+  size_t inversion_memory = n * (2 * n) * sizeof(double) + n * sizeof(double*); // Thanks Gauss!
+  
+  printf("Model's estimated memory usage: %zu bytes (%.2f KB)\n", size, size / 1024.0);
+  printf("Matrix inversion memory usage per iteration: %zu bytes (%.2f KB)\n", 
+         inversion_memory, inversion_memory / 1024.0);
+  printf("Total iterations: %d\n", model->solver_iterations);
+
+  free(model->lhs_matrix);
   free(model->objective);
   free(model->coeffs);
   free(model->rhs_vector);
   free(model->basics_vector);
   free(model->constraints_symbols);
-  free(model->equalities_vector);
+  free(model->artificials_vector);
   free(model->non_basics);
   free(model);
-  printf("Model's estimated memory usage: %zu bytes\n", size);
+
+
   printf("-------------------------------\n");
   printf("Model free'd from the heap\n");
 }
 
 void ValidateModelPointers(Model *model)
 {
-    if (!model)
-    {
-        fprintf(stderr, "Fatal Error: Model pointer is NULL.\n");
-        exit(1);
-    }
+  if (!model)
+  {
+    fprintf(stderr, "Fatal Error: Model pointer is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->columns)
-    {
-        fprintf(stderr, "Fatal Error: model->columns is NULL.\n");
-        exit(1);
-    }
+  if (!model->lhs_matrix)
+  {
+    fprintf(stderr, "Fatal Error: model->lhs_matrix is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->objective)
-    {
-        fprintf(stderr, "Fatal Error: model->objective is NULL.\n");
-        exit(1);
-    }
+  if (!model->objective)
+  {
+    fprintf(stderr, "Fatal Error: model->objective is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->coeffs)
-    {
-        fprintf(stderr, "Fatal Error: model->coeffs is NULL.\n");
-        exit(1);
-    }
+  if (!model->coeffs)
+  {
+    fprintf(stderr, "Fatal Error: model->coeffs is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->rhs_vector)
-    {
-        fprintf(stderr, "Fatal Error: model->rhs_vector is NULL.\n");
-        exit(1);
-    }
+  if (!model->rhs_vector)
+  {
+    fprintf(stderr, "Fatal Error: model->rhs_vector is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->basics_vector)
-    {
-        fprintf(stderr, "Fatal Error: model->basics_vector is NULL.\n");
-        exit(1);
-    }
+  if (!model->basics_vector)
+  {
+    fprintf(stderr, "Fatal Error: model->basics_vector is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->constraints_symbols)
-    {
-        fprintf(stderr, "Fatal Error: model->constraints_symbols is NULL.\n");
-        exit(1);
-    }
+  if (!model->constraints_symbols)
+  {
+    fprintf(stderr, "Fatal Error: model->constraints_symbols is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->equalities_vector)
-    {
-        fprintf(stderr, "Fatal Error: model->equalities_vector is NULL.\n");
-        exit(1);
-    }
+  if (!model->artificials_vector)
+  {
+    fprintf(stderr, "Fatal Error: model->artificials_vector is NULL.\n");
+    exit(1);
+  }
 
-    if (!model->non_basics)
-    {
-        fprintf(stderr, "Fatal Error: model->non_basics is NULL.\n");
-        exit(1);
-    }
+  if (!model->non_basics)
+  {
+    fprintf(stderr, "Fatal Error: model->non_basics is NULL.\n");
+    exit(1);
+  }
 
-    for (int i = 0; i < model->num_constraints; i++)
+  for (int i = 0; i < model->num_constraints; i++)
+  {
+    if (!model->lhs_matrix[i])
     {
-        if (!model->columns[i])
-        {
-            fprintf(stderr, "Fatal Error: model->columns[%d] is NULL.\n", i);
-            exit(1);
-        }
+      fprintf(stderr, "Fatal Error: model->lhs_matrix[%d] is NULL.\n", i);
+      exit(1);
     }
+  }
 }
 

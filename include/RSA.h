@@ -12,15 +12,15 @@ typedef struct
   char *objective;     // MINIMIZE or MAXIMIZE
   size_t num_constraints; // Number of constraints
   size_t num_vars;        // Number of variables
-  double **columns;    // Constraints x variables coeffs matrix
+  double **lhs_matrix;    // Constraints Left hand side
   double *coeffs;      // Variable objective coefficients
   double *rhs_vector;  // Right hand side vector of the constraints
   int *basics_vector;  // Vector where I keep track of the basic variables
   double objective_function;
   char *constraints_symbols; // Tracks the constraints' symbols, for debugging purposes only
-  int inequalities_count;    // Counts the number of inequalities
-  int equalities_count;      // Counts the number of equality constraints
-  int *equalities_vector;    // Contains the indices of the equality constraints
+  int slacks_surplus_count;    // Counts the number of slack and surplus vars
+  int artificials_count;      // Counts the number of artificial vars
+  int *artificials_vector;    // Contains the indices of artificial vars
   int solver_iterations;
   int *non_basics;      // Contains indices of non-basic variables
   int non_basics_count; // Counts the number of non-basic variables
