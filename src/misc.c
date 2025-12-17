@@ -1,7 +1,7 @@
 #include "misc.h"
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "RSA.h"
 
 void AddConstraint(Model* model, double* lhs, size_t lhs_count, char symbol, double rhs) 
 {
@@ -22,28 +22,28 @@ void AddConstraint(Model* model, double* lhs, size_t lhs_count, char symbol, dou
     size_t newCount = model->num_constraints + 1;
 
  
-    double **tmpColumns = realloc(model->columns,
+    double **tmplhs_matrix = realloc(model->lhs_matrix,
                                   newCount * sizeof(double*));
 
-    if (tmpColumns == NULL) {
-        fprintf(stderr, "Error: realloc failed for model->columns\n");
+    if (tmplhs_matrix == NULL) {
+        fprintf(stderr, "Error: realloc failed for model->lhs_matrix\n");
         exit(1);
     }
-    model->columns = tmpColumns;
+    model->lhs_matrix = tmplhs_matrix;
 
-    model->columns[model->num_constraints] =
+    model->lhs_matrix[model->num_constraints] =
         malloc(model->num_vars * sizeof(double));
-    if (model->columns[model->num_constraints] == NULL) {
-        fprintf(stderr, "Error: malloc failed for new row in columns\n");
+    if (model->lhs_matrix[model->num_constraints] == NULL) {
+        fprintf(stderr, "Error: malloc failed for new row in lhs_matrix\n");
         exit(1);
     }
 
     for (size_t j = 0; j < lhs_count; j++) {
-        model->columns[model->num_constraints][j] = lhs[j];
+        model->lhs_matrix[model->num_constraints][j] = lhs[j];
     }
 
     for (size_t j = lhs_count; j < model->num_vars; j++) {
-        model->columns[model->num_constraints][j] = 0.0;
+        model->lhs_matrix[model->num_constraints][j] = 0.0;
     }
 
     double *tmpRhs = realloc(model->rhs_vector,
@@ -88,17 +88,17 @@ void AddVar(Model* model, double var_coeff)
     for (size_t i = 0; i < model->num_constraints; i++) {
 
         double *tmpRow =
-            realloc(model->columns[i], sizeof(double) * newVarCount);
+            realloc(model->lhs_matrix[i], sizeof(double) * newVarCount);
 
         if (tmpRow == NULL) {
             fprintf(stderr,
-                    "Error: realloc failed for columns row %zu\n", i);
+                    "Error: realloc failed for lhs_matrix row %zu\n", i);
             exit(1);
         }
 
-        model->columns[i] = tmpRow;
+        model->lhs_matrix[i] = tmpRow;
 
-        model->columns[i][model->num_vars] = 0.0;
+        model->lhs_matrix[i][model->num_vars] = 0.0;
     }
 
 

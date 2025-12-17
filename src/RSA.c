@@ -1079,10 +1079,13 @@ void FreeModel(Model *model)
 
   size_t n = model->num_constraints;
   size_t inversion_memory = n * (2 * n) * sizeof(double) + n * sizeof(double*); // Thanks Gauss!
-  
+  size_t constraints_vector = n * sizeof(double);
   printf("Model's estimated memory usage: %zu bytes (%.2f KB)\n", size, size / 1024.0);
   printf("Matrix inversion memory usage per iteration: %zu bytes (%.2f KB)\n", 
          inversion_memory, inversion_memory / 1024.0);
+  printf("Simplex multiplier vector size per iteration: %zu bytes (%.2f KB) \n", constraints_vector, constraints_vector / 1024.0);
+  printf("Memory usage when updating the RHS vector per iteration: %zu bytes (%.2f KB) \n", constraints_vector, constraints_vector / 1024.0);
+  printf("Total dynamic memory usage in each iteration: %zu bytes (%.2f KB)", constraints_vector * 2 + inversion_memory + size,constraints_vector * 2 + inversion_memory + size);
   printf("Total iterations: %d\n", model->solver_iterations);
 
   free(model->lhs_matrix);
