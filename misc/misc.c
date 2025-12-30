@@ -81,9 +81,11 @@ void AddVar(Model* model, double var_coeff)
         fprintf(stderr, "Error: realloc failed for coeffs\n");
         exit(1);
     }
-
+    Variable *variable;
+    variable->value = var_coeff;
+    variable->type = 1;
     model->coeffs = tmpCoeffs;
-    model->coeffs[model->num_vars] = var_coeff;
+    model->coeffs[model->num_vars] = variable;
 
     for (size_t i = 0; i < model->num_constraints; i++) {
 
