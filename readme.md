@@ -1,5 +1,5 @@
-# Revised Simplex Algorithm in C
-
+# Linear mathematics solver in pure C
+The repo was previously named RSA. To eliminate all sorts of confusion with the RSA encryption algorithm, I will just call it Solver for now.
 
 TODO: 
 
