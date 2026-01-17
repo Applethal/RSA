@@ -1,5 +1,5 @@
-#ifndef RSA_H
-#define RSA_H
+#ifndef CORE_H
+#define CORE_H
 
 #include <stddef.h>
 #include <stdio.h>
@@ -7,20 +7,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 
-
-#define ARTIFICIAL 2
-#define STANDARD 1
-#define SLACK 3
+typedef enum {
+  STANDARD = 1,
+  ARTIFICIAL = 2,
+  SLACK = 3
+} VariableType;
 
 typedef struct {
   double value;
-  int type; // 1, 2 and 3 for standard, artificial and slack variables respectively
+  VariableType type;  
 } Variable;
 
 typedef struct
 {
-  char *objective;           // MINIMIZE or MAXIMIZE
+  bool objective;           // MINIMIZE 0, MAXIMIZE 1
   size_t num_constraints;    // Number of constraints
   size_t num_vars;           // Number of variables
   double **lhs_matrix;       // Constraints Left hand side
@@ -54,4 +56,4 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector);
 void FreeModel(Model *model);
 void ValidateModelPointers(Model *model);
 
-#endif // RSA_H
+#endif // CORE_H

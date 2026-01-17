@@ -1,4 +1,4 @@
-#include "RSA.h"
+#include "core.h"
 
 // I was planning to make an API out of this code logic hence why I defined some limits on what the user can give to the code, feel free to adjust these
 #define MAX_LINE_LENGTH 1024 
@@ -75,13 +75,18 @@ Model *ReadCsv(FILE *csvfile)
     return NULL;
   }
 
-  model->objective = (char *)malloc(strlen(token) + 1);
-  strcpy(model->objective, token);
-
+    if (strcmp(token, "MINIMIZE") == 0) {
+  model->objective = 0;
+} else if (strcmp(token, "MAXIMIZE") == 0) {
+  model->objective = 1;
+} else {
+  fprintf(stderr, "Error: Invalid objective type (expected MINIMIZE or MAXIMIZE)\n");
+  free(model);
+  return NULL;
+}
   token = strtok(NULL, ",");
   if (!token) {
     fprintf(stderr, "Error: Missing variables count in header\n");
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -90,7 +95,6 @@ Model *ReadCsv(FILE *csvfile)
   token = strtok(NULL, ",");
   if (!token) {
     fprintf(stderr, "Error: Missing constraints count in header\n");
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -99,7 +103,6 @@ Model *ReadCsv(FILE *csvfile)
   if (model->num_vars > MAX_VARS) {
     fprintf(stderr, "Error: Too many variables (%zu). Maximum allowed: %d\n", 
             model->num_vars, MAX_VARS);
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -107,7 +110,6 @@ Model *ReadCsv(FILE *csvfile)
   if (model->num_constraints > MAX_CONSTRAINTS) {
     fprintf(stderr, "Error: Too many constraints (%zu). Maximum allowed: %d\n",
             model->num_constraints, MAX_CONSTRAINTS);
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -116,7 +118,6 @@ Model *ReadCsv(FILE *csvfile)
   if (!fgets(line, sizeof(line), csvfile))
   {
     fprintf(stderr, "Error: Could not read objective coefficients\n");
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -137,7 +138,6 @@ Model *ReadCsv(FILE *csvfile)
     fprintf(stderr, "Error: Expected %zu variable coefficients but got %d\n", 
             model->num_vars, idx);
     free(model->coeffs);
-    free(model->objective);
     free(model);
     return NULL;
   }
@@ -166,7 +166,6 @@ Model *ReadCsv(FILE *csvfile)
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
-      free(model->objective);
       free(model);
       return NULL;
     }
@@ -191,7 +190,6 @@ Model *ReadCsv(FILE *csvfile)
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
-      free(model->objective);
       free(model);
       return NULL;
     }
@@ -206,7 +204,6 @@ Model *ReadCsv(FILE *csvfile)
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
-      free(model->objective);
       free(model);
       return NULL;
     }
@@ -247,7 +244,6 @@ Model *ReadCsv(FILE *csvfile)
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
-      free(model->objective);
       free(model);
       return NULL;
     }
@@ -263,7 +259,6 @@ Model *ReadCsv(FILE *csvfile)
       free(model->rhs_vector);
       free(model->constraints_symbols);
       free(model->coeffs);
-      free(model->objective);
       free(model);
       return NULL;
     }
@@ -401,7 +396,8 @@ void TransformModel(Model *model)
   int artificial_start = model->num_vars + model->slacks_surplus_count;
   for (int i = 0; i < model->artificials_count; i++)
   {
-    if (strcmp(model->objective, "MAXIMIZE") == 0)
+    if (model->objective == 1)
+    
     {
       model->coeffs[artificial_start + i].value = -1.0;
     }
@@ -412,7 +408,7 @@ void TransformModel(Model *model)
   }
 
   // Convert MINIMIZE to MAXIMIZE by negating all coefficients
-  if (strcmp(model->objective, "MINIMIZE") == 0)
+  if (model->objective == 0)
   {
     for (int i = 0; i < total_cols; i++)
     {
@@ -678,8 +674,14 @@ void RevisedSimplex_Debug(Model *model) {
 
   printf("Debug Mode: On\n");
   printf("Model after transformation:\n");
-  printf("Objective function mode: %s\n", model->objective);
-  printf("Number of variables: %d\n", model->num_vars);
+  if (model->objective == 0) {
+  printf("Objective function mode: MINIMIZE\n");
+
+  } else {
+  printf("Objective function mode: MAXIMIZE");
+
+  }
+    printf("Number of variables: %d\n", model->num_vars);
   printf("Number of constraints: %d\n", model->num_constraints);
   printf("Objective coefficients:");
   for (int i = 0; i < model->num_vars; i++) {
@@ -952,7 +954,7 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector)
     {
       // Convert back to original coefficient if it's a minimization problem originally
       double original_coeff = model->coeffs[basic_idx].value;
-      if (strcmp(model->objective, "MINIMIZE") == 0)
+      if (model->objective == 0)
       {
         original_coeff *= -1;
       }
@@ -963,7 +965,7 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector)
   }
 
   // Convert objective function back for minimization
-  if (strcmp(model->objective, "MINIMIZE") == 0)
+  if (model->objective == 0)
   {
     model->objective_function *= -1;
   }
@@ -975,7 +977,7 @@ void FreeModel(Model *model)
 {
   size_t size = 0;
 
-  size += sizeof(char) * 8; // objective string
+  size += sizeof(bool); // objective mode
   size += sizeof(int) * model->num_constraints * 2;
   size += sizeof(int) * model->num_vars;
 
@@ -1009,7 +1011,6 @@ void FreeModel(Model *model)
   printf("Total iterations: %d\n", model->solver_iterations);
 
   free(model->lhs_matrix);
-  free(model->objective);
   free(model->coeffs);
   free(model->rhs_vector);
   free(model->basics_vector);
@@ -1036,12 +1037,7 @@ void ValidateModelPointers(Model *model)
     exit(1);
   }
 
-  if (!model->objective)
-  {
-    fprintf(stderr, "Fatal Error: model->objective is NULL.\n");
-    exit(1);
-  }
-
+  
   if (!model->coeffs)
   {
     fprintf(stderr, "Fatal Error: model->coeffs is NULL.\n");
