@@ -130,6 +130,7 @@ Model *ReadCsv(FILE *csvfile)
   {
     model->coeffs[idx].value = atof(token);
     model->coeffs[idx].type = STANDARD;
+    model->coeffs[idx].constraint_idx = 0; // dummy for now
     idx++;
     token = strtok(NULL, ",");
   }
@@ -301,7 +302,6 @@ void TransformModel(Model *model)
 
   double **old_lhs_matrix = model->lhs_matrix;
   Variable *old_coeffs = model->coeffs;
-  size_t old_num_vars = model->num_vars;
 
   // Allocate new expanded lhs_matrix matrix
   model->lhs_matrix = (double **)malloc(model->num_constraints * sizeof(double *));
@@ -309,7 +309,7 @@ void TransformModel(Model *model)
   {
     model->lhs_matrix[i] = (double *)calloc(total_cols, sizeof(double));
 
-    for (int j = 0; j < old_num_vars; j++)
+    for (int j = 0; j < model->num_vars; j++)
     {
       model->lhs_matrix[i][j] = old_lhs_matrix[i][j];
     }
@@ -319,7 +319,7 @@ void TransformModel(Model *model)
   model->coeffs = (Variable *)calloc(total_cols, sizeof(Variable));
 
   // Copy original objective coefficients
-  for (int i = 0; i < old_num_vars; i++)
+  for (int i = 0; i < model->num_vars; i++)
   {
     model->coeffs[i] = old_coeffs[i];
   }
@@ -352,6 +352,7 @@ void TransformModel(Model *model)
       model->basics_vector[i] = col;
       model->coeffs[col].type = SLACK;  
       model->coeffs[col].value = 0.0;
+      model->coeffs[col].constraint_idx = 0;
       slack_idx++;
     }
     else if (model->constraints_symbols[i] == 'G')
@@ -365,10 +366,10 @@ void TransformModel(Model *model)
       
       model->coeffs[surplus_col].type = SLACK;
       model->coeffs[surplus_col].value = 0.0;
-      
+      model->coeffs[surplus_col].constraint_idx = 0; 
       model->coeffs[artif_col].type = ARTIFICIAL;
       model->coeffs[artif_col].value = 0.0;
-      
+      model->coeffs[artif_col].constraint_idx = 0; 
       model->artificials_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
 
@@ -383,6 +384,7 @@ void TransformModel(Model *model)
       
       model->coeffs[artif_col].type = ARTIFICIAL;
       model->coeffs[artif_col].value = 0.0;
+      model->coeffs[artif_col].constraint_idx = 0;
       
       model->artificials_vector[artificial_idx] = artif_col;
       model->basics_vector[i] = artif_col;
@@ -975,11 +977,20 @@ void Get_ObjectiveFunction(Model *model, double *rhs_vector)
 
 void FreeModel(Model *model)
 {
+  
+  
   size_t size = 0;
 
   size += sizeof(bool); // objective mode
   size += sizeof(int) * model->num_constraints * 2;
   size += sizeof(int) * model->num_vars;
+  
+  
+  // variable struct
+  size += sizeof(Variable) * model->num_vars; // struct
+  size += sizeof(int) * model->num_vars; // type 
+  size += sizeof(int) * model->num_vars; // constraint index
+  size += sizeof(double) * model->num_vars; // value
 
   int total_cols = model->num_vars + model->slacks_surplus_count + model->artificials_count;
 

@@ -18,6 +18,8 @@ typedef enum {
 typedef struct {
   double value;
   VariableType type;  
+  int constraint_idx; // -1 by default if the variable has no integrity constraints. This is going to help with the branch and bound to help track which bound constraint this variable corresponds to. For binary variables, its value should be num_constraints - num_vars + index of the variable.
+                      
 } Variable;
 
 typedef struct
